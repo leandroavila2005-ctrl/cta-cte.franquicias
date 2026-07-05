@@ -1,0 +1,40 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  color: #2b1b12;
+  background: #f6edcf; /* amarillo cremita — lienzo detrás de la ventana */
+  -webkit-font-smoothing: antialiased;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+}
+
+/* Ocultar scrollbars internos (app plana, sin cromo) */
+.gv-scroll {
+  scrollbar-width: none;
+}
+
+/* Botones de rol del login: borde rojo al pasar el mouse */
+.gv-role:hover {
+  border-color: #c8102e !important;
+}
