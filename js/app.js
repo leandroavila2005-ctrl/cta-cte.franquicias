@@ -14,12 +14,14 @@ window.Genova = window.Genova || {}
     aTab: 'resumen', // pestaña del admin
     branch: 0, // índice de sucursal activa (admin)
     det: true, // detalle del cálculo abierto (franquiciado)
-    modal: null, // modal admin abierto: 'pago' | 'anexo' | 'usuario' | 'producto'
+    modal: null, // modal abierto: 'pago' | 'anexo' | 'usuario' | 'producto' | 'edit-anexo' | 'edit-pago'
+    edit: null, // fila que se está editando: { row, ...valores }
     sucursalActual: '', // nombre de la sucursal activa (admin) — para las escrituras
     user: null, // { email, rol, sucursal } — usuario autenticado (modo real)
     deniedEmail: '', // email rechazado (pantalla de acceso denegado)
     deniedError: '', // mensaje de error crudo del backend (diagnóstico)
     mes: cfg.MES_ACTUAL, // mes que se está viendo (navegable hacia atrás)
+    asFran: null, // admin mirando como franquiciado: nombre de sucursal (solo lectura)
   }
 
   var root = document.getElementById('app')
@@ -40,9 +42,9 @@ window.Genova = window.Genova || {}
     }
 
     if (state.view === 'fran') {
-      var sucursalF = (state.user && state.user.sucursal) || 'City Bell' // su sucursal (o City Bell en demo)
+      var sucursalF = state.asFran || (state.user && state.user.sucursal) || 'City Bell' // su sucursal (o la que el admin está mirando)
       var resF = await api.panelFran(sucursalF, state.mes)
-      root.innerHTML = views.franchisee(state, { dash: resF.dash, anexos: resF.anexos, pagos: resF.pagos }) + views.franModal(state)
+      root.innerHTML = views.franchisee(state, { dash: resF.dash, anexos: resF.anexos, pagos: resF.pagos }) + views.franModal(state, { alias: resF.alias })
       return
     }
 
@@ -56,7 +58,8 @@ window.Genova = window.Genova || {}
       pagos: res.pagos,
       usuarios: res.usuarios,
       catalogo: res.catalogo,
-    }) + views.adminModal(state, { sucursales: res.sucursales, catalogo: res.catalogo })
+      alias: res.alias,
+    }) + views.adminModal(state, { sucursales: res.sucursales, catalogo: res.catalogo, alias: res.alias })
   }
 
   // --- Helpers de formularios ---
@@ -64,9 +67,29 @@ window.Genova = window.Genova || {}
     var el = document.getElementById(id)
     return el ? el.value.trim() : ''
   }
-  // "1.240.000" o "1240000" -> 1240000
+  // Formato argentino del input ("1.240.000,50") -> 1240000.5  (miles ".", decimal ",")
   function num(s) {
-    return Number(String(s).replace(/[^\d-]/g, '')) || 0
+    s = String(s).replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')
+    return Math.round((parseFloat(s) || 0) * 100) / 100
+  }
+
+  // Reformatea un input numérico a formato argentino en vivo (miles "." + decimal ",").
+  function reformatNum(el) {
+    var v = el.value
+    var neg = v.trim().charAt(0) === '-'
+    v = v.replace(/[^\d,]/g, '') // solo dígitos y comas (los "." de miles se recalculan)
+    var i = v.indexOf(',')
+    var ent, dec = null
+    if (i !== -1) { ent = v.slice(0, i).replace(/,/g, ''); dec = v.slice(i + 1).replace(/,/g, '').slice(0, 2) }
+    else { ent = v.replace(/,/g, '') }
+    ent = ent.replace(/^0+(?=\d)/, '')
+    var miles = ent.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    var out = (miles === '' && dec !== null) ? '0' : miles
+    if (dec !== null) out += ',' + dec
+    el.value = (neg && out !== '') ? '-' + out : out
+  }
+  function esNumInput(el) {
+    return el && el.getAttribute && el.getAttribute('data-num') != null
   }
   // "dd/mm" (o "dd/mm/aaaa") -> "AAAA-MM-DD" (año: del mes en curso). Vacío -> hoy.
   function isoFecha(s) {
@@ -93,7 +116,13 @@ window.Genova = window.Genova || {}
     'login-fran': function () { state.view = 'fran'; state.fTab = 'resumen'; state.modal = null },
     'logout': function () {
       try { if (Genova.auth) Genova.auth.logout() } catch (e) {}
-      state.user = null; state.modal = null; state.view = 'login'
+      state.user = null; state.modal = null; state.asFran = null; state.view = 'login'
+    },
+    'view-as-fran': function () {
+      state.asFran = state.sucursalActual || ''; state.view = 'fran'; state.fTab = 'resumen'; state.modal = null
+    },
+    'back-to-admin': function () {
+      state.asFran = null; state.view = 'admin'; state.aTab = 'resumen'; state.modal = null
     },
     'google-login': function () {
       Genova.auth.prompt(document.getElementById('gv-google-fallback'))
@@ -105,9 +134,22 @@ window.Genova = window.Genova || {}
     'toggle-det': function () { state.det = !state.det },
     'prev-month': function () { state.mes = correrMes(state.mes, -1) },
     'next-month': function () { if (state.mes < cfg.MES_ACTUAL) state.mes = correrMes(state.mes, 1) },
+    'set-mes': function (el) { var v = el.value; if (v && v <= cfg.MES_ACTUAL) state.mes = v },
 
     'open-modal': function (el) { state.modal = el.getAttribute('data-modal') },
     'close-modal': function () { state.modal = null },
+
+    // Colapsar/expandir una sección (toggle directo del DOM, sin re-render).
+    'collap': function (el) {
+      var body = document.getElementById(el.getAttribute('data-target'))
+      if (body) {
+        var oculto = body.style.display === 'none'
+        body.style.display = oculto ? '' : 'none'
+        var chev = el.querySelector('.gv-chev')
+        if (chev) chev.style.transform = oculto ? '' : 'rotate(-90deg)'
+      }
+      return false // sin re-render
+    },
 
     'save-venta': function () {
       var monto = num(val('gv-venta'))
@@ -141,7 +183,7 @@ window.Genova = window.Genova || {}
       return api.create('anexos', {
         sucursal: state.sucursalActual, mes: fecha.slice(0, 7), fecha: fecha,
         producto: sel.value, cantidad: cantidad,
-        unidad: opt.getAttribute('data-unidad'), precioUnit: num(opt.getAttribute('data-precio')),
+        unidad: opt.getAttribute('data-unidad'), precioUnit: Number(opt.getAttribute('data-precio')) || 0,
       })
     },
 
@@ -155,6 +197,52 @@ window.Genova = window.Genova || {}
       })
     },
 
+    'save-cuenta': function () {
+      var concepto = val('gv-cuenta-concepto')
+      if (!concepto) return false
+      state.modal = null
+      return api.create('alias', { concepto: concepto, aliasCbu: val('gv-cuenta-cbu'), titular: val('gv-cuenta-titular') })
+    },
+    'edit-cuenta': function (el) {
+      state.edit = {
+        row: parseInt(el.getAttribute('data-id'), 10),
+        concepto: decodeURIComponent(el.getAttribute('data-concepto') || ''),
+        aliasCbu: decodeURIComponent(el.getAttribute('data-cbu') || ''),
+        titular: decodeURIComponent(el.getAttribute('data-titular') || ''),
+      }
+      state.modal = 'edit-cuenta'
+    },
+    'del-cuenta': function (el) {
+      if (!window.confirm('¿Eliminar esta cuenta para cobros?')) return false
+      return api.remove('alias', parseInt(el.getAttribute('data-id'), 10))
+    },
+    'save-edit-cuenta': function () {
+      var concepto = val('gv-cuenta-concepto')
+      if (!concepto) return false
+      var row = state.edit.row
+      state.modal = null; state.edit = null
+      return api.update('alias', row, { concepto: concepto, aliasCbu: val('gv-cuenta-cbu'), titular: val('gv-cuenta-titular') })
+    },
+    'copy-alias': function (el) {
+      var txt = el.getAttribute('data-text') || ''
+      try { if (navigator.clipboard) navigator.clipboard.writeText(txt) } catch (e) {}
+      if (el.getAttribute('data-orig') == null) el.setAttribute('data-orig', el.innerHTML)
+      el.textContent = '¡Copiado!'
+      setTimeout(function () { el.innerHTML = el.getAttribute('data-orig') }, 1200)
+      return false // sin re-render: mantiene el modal abierto
+    },
+    // Al elegir una cuenta en el desplegable, actualiza alias/CBU + titular (sin re-render).
+    'pick-cuenta': function (el) {
+      var opt = el.options[el.selectedIndex]
+      var cbu = opt ? (opt.getAttribute('data-cbu') || '') : ''
+      var tit = opt ? (opt.getAttribute('data-titular') || '') : ''
+      var a = document.getElementById('gv-cuenta-alias'); if (a) a.textContent = cbu || '—'
+      var t = document.getElementById('gv-cuenta-titular'); if (t) t.textContent = tit || '—'
+      var c = document.getElementById('gv-cuenta-copy')
+      if (c) { c.setAttribute('data-text', cbu); c.removeAttribute('data-orig') }
+      return false // sin re-render
+    },
+
     'save-producto': function () {
       var producto = val('gv-prod-nombre')
       if (!producto) return false
@@ -163,15 +251,62 @@ window.Genova = window.Genova || {}
         producto: producto, unidad: val('gv-prod-unidad'), precio: num(val('gv-prod-precio')),
       })
     },
+    'edit-producto': function (el) {
+      state.edit = {
+        row: parseInt(el.getAttribute('data-id'), 10),
+        producto: decodeURIComponent(el.getAttribute('data-producto') || ''),
+        unidad: decodeURIComponent(el.getAttribute('data-unidad') || ''),
+        precio: el.getAttribute('data-precio'),
+      }
+      state.modal = 'edit-producto'
+    },
+    'del-producto': function (el) {
+      if (!window.confirm('¿Eliminar este producto del catálogo? No afecta a los anexos ya cargados.')) return false
+      return api.remove('catalogo', parseInt(el.getAttribute('data-id'), 10))
+    },
+    'save-edit-producto': function () {
+      var producto = val('gv-prod-nombre')
+      if (!producto) return false
+      var row = state.edit.row
+      state.modal = null; state.edit = null
+      return api.update('catalogo', row, { producto: producto, unidad: val('gv-prod-unidad'), precio: num(val('gv-prod-precio')) })
+    },
+
+    'edit-usuario': function (el) {
+      state.edit = {
+        row: parseInt(el.getAttribute('data-id'), 10),
+        nombre: decodeURIComponent(el.getAttribute('data-nombre') || ''),
+        iniciales: decodeURIComponent(el.getAttribute('data-iniciales') || ''),
+        sucursal: decodeURIComponent(el.getAttribute('data-sucursal') || ''),
+        email: decodeURIComponent(el.getAttribute('data-email') || ''),
+        estado: decodeURIComponent(el.getAttribute('data-estado') || ''),
+      }
+      state.modal = 'edit-usuario'
+    },
+    'del-usuario': function (el) {
+      if (!window.confirm('¿Eliminar este franquiciado? Perderá el acceso.')) return false
+      return api.remove('usuarios', parseInt(el.getAttribute('data-id'), 10))
+    },
+    'save-edit-usuario': function () {
+      var nombre = val('gv-user-nombre')
+      if (!nombre) return false
+      var row = state.edit.row
+      state.modal = null; state.edit = null
+      return api.update('usuarios', row, {
+        nombre: nombre, iniciales: val('gv-user-iniciales'), sucursal: val('gv-user-sucursal'),
+        email: val('gv-user-email'), estado: val('gv-user-estado'),
+      })
+    },
 
     'save-pago-fran': function () {
-      var monto = num(val('gv-fpago-monto'))
-      var concepto = val('gv-fpago-concepto')
+      if (state.asFran) return false // admin mirando: solo lectura
+      var monto = num(val('gv-pago-monto'))
+      var concepto = val('gv-pago-concepto')
       if (!concepto || !monto) return false
       state.modal = null
       var fecha = isoFecha(val('gv-fecha'))
       return api.create('pagos', {
-        sucursal: 'City Bell', mes: fecha.slice(0, 7),
+        sucursal: (state.user && state.user.sucursal) || 'City Bell', mes: fecha.slice(0, 7),
         concepto: concepto, monto: monto, estado: 'pending', fecha: fecha,
       })
     },
@@ -182,6 +317,60 @@ window.Genova = window.Genova || {}
     'reject-pago': function (el) {
       if (!window.confirm('¿Rechazar y borrar este pago?')) return false
       return api.remove('pagos', parseInt(el.getAttribute('data-id'), 10))
+    },
+
+    'edit-anexo': function (el) {
+      state.edit = {
+        row: parseInt(el.getAttribute('data-id'), 10),
+        producto: decodeURIComponent(el.getAttribute('data-producto') || ''),
+        cantidad: el.getAttribute('data-cantidad'),
+        fecha: el.getAttribute('data-fecha'),
+      }
+      state.modal = 'edit-anexo'
+    },
+    'del-anexo': function (el) {
+      if (!window.confirm('¿Eliminar este anexo? Se recalcularán los saldos.')) return false
+      return api.remove('anexos', parseInt(el.getAttribute('data-id'), 10))
+    },
+    'save-edit-anexo': function () {
+      var sel = document.getElementById('gv-anexo-producto')
+      if (!sel || !sel.value) return false
+      var opt = sel.options[sel.selectedIndex]
+      var cantidad = num(val('gv-anexo-cantidad'))
+      if (!cantidad) return false
+      var row = state.edit.row
+      state.modal = null; state.edit = null
+      var fecha = isoFecha(val('gv-fecha'))
+      return api.update('anexos', row, {
+        mes: fecha.slice(0, 7), fecha: fecha, producto: sel.value, cantidad: cantidad,
+        unidad: opt.getAttribute('data-unidad'), precioUnit: Number(opt.getAttribute('data-precio')) || 0,
+      })
+    },
+
+    'edit-pago': function (el) {
+      if (state.asFran) return false // admin mirando: solo lectura
+      state.edit = {
+        row: parseInt(el.getAttribute('data-id'), 10),
+        concepto: decodeURIComponent(el.getAttribute('data-concepto') || ''),
+        monto: el.getAttribute('data-monto'),
+        fecha: el.getAttribute('data-fecha'),
+      }
+      state.modal = 'edit-pago'
+    },
+    'del-pago': function (el) {
+      if (state.asFran) return false // admin mirando: solo lectura
+      if (!window.confirm('¿Eliminar este pago? Se recalcularán los saldos.')) return false
+      return api.remove('pagos', parseInt(el.getAttribute('data-id'), 10))
+    },
+    'save-edit-pago': function () {
+      if (state.asFran) return false // admin mirando: solo lectura
+      var monto = num(val('gv-pago-monto'))
+      var concepto = val('gv-pago-concepto')
+      if (!concepto || !monto) return false
+      var row = state.edit.row
+      state.modal = null; state.edit = null
+      var fecha = isoFecha(val('gv-fecha'))
+      return api.update('pagos', row, { concepto: concepto, monto: monto, mes: fecha.slice(0, 7), fecha: fecha })
     },
   }
 
@@ -199,9 +388,7 @@ window.Genova = window.Genova || {}
     }
   }
 
-  root.addEventListener('click', function (e) {
-    var el = e.target.closest('[data-action]')
-    if (!el) return
+  function run(el) {
     var fn = actions[el.getAttribute('data-action')]
     if (!fn) return
     var r = fn(el)
@@ -213,6 +400,32 @@ window.Genova = window.Genova || {}
     }).catch(function (e) {
       window.alert('Error de conexión con la planilla: ' + (e && e.message ? e.message : e))
     }).then(function () { loading(false) })
+  }
+
+  root.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-action]')
+    if (!el || el.tagName === 'SELECT') return // el <select> se maneja en 'change'
+    run(el)
+  })
+  root.addEventListener('change', function (e) {
+    var el = e.target.closest('[data-action]')
+    if (!el || el.tagName !== 'SELECT') return
+    run(el)
+  })
+
+  // Inputs numéricos: el "." escribe la coma decimal; formatea miles/decimales en vivo.
+  root.addEventListener('keydown', function (e) {
+    var el = e.target
+    if (!esNumInput(el) || (e.key !== '.' && e.key !== ',')) return
+    e.preventDefault()
+    if (el.value.indexOf(',') !== -1) return // ya hay decimal
+    var s = el.selectionStart == null ? el.value.length : el.selectionStart
+    var en = el.selectionEnd == null ? el.value.length : el.selectionEnd
+    el.value = el.value.slice(0, s) + ',' + el.value.slice(en)
+    reformatNum(el)
+  })
+  root.addEventListener('input', function (e) {
+    if (esNumInput(e.target)) reformatNum(e.target)
   })
 
   // --- Arranque / autenticación ---

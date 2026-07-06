@@ -8,16 +8,18 @@ Genova.format = (function () {
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
   ]
 
-  // 1240000 -> "$1.240.000"   ·   -12400 -> "−$12.400"
-  function money(n) {
-    var neg = n < 0
-    var x = Math.abs(Math.round(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-    return (neg ? '−$' : '$') + x
+  // Formato argentino: miles con "." y 2 decimales con ",".  1240000 -> "1.240.000,00"
+  function arNum(n) {
+    var p = Math.abs(Number(n) || 0).toFixed(2).split('.')
+    return p[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.') + ',' + p[1]
   }
-
-  // 2480000 -> "2.480.000"  (sin símbolo, para el input de venta)
+  // 1240000 -> "$1.240.000,00"   ·   -12400.5 -> "−$12.400,50"
+  function money(n) {
+    return ((Number(n) || 0) < 0 ? '−$' : '$') + arNum(n)
+  }
+  // 2480000 -> "2.480.000,00"  (sin símbolo, para el input de venta)
   function plain(n) {
-    return Math.abs(Math.round(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    return arNum(n)
   }
 
   // '2026-07-28' -> "28"

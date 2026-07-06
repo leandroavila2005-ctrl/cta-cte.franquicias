@@ -91,9 +91,10 @@ Genova.views = (function () {
   function franchisee(state, data) {
     var d = data.dash
     var tab = state.fTab
+    var ro = !!state.asFran // admin mirando como franquiciado → solo lectura
     var body = tab === 'resumen' ? franResumen(state, d)
       : tab === 'anexos' ? franAnexos(d, data.anexos)
-      : franPagos(d, data.pagos)
+      : franPagos(d, data.pagos, ro)
 
     function tabBtn(key, label) {
       var active = tab === key
@@ -112,15 +113,18 @@ Genova.views = (function () {
           <span style="font-family:'Playfair Display',serif; font-weight:700; font-size:16px;">Pastas Genova</span>
           <span style="font-size:11px; opacity:.85; font-weight:500;">Sucursal ${d.sucursal}</span>
         </div>
-        <button data-action="logout" style="margin-left:auto; background:rgba(255,255,255,.16); border:none; color:#fff; font-size:11px; font-weight:600; font-family:'Inter',sans-serif; padding:7px 11px; border-radius:8px; cursor:pointer;">Salir</button>
+        ${ro
+          ? `<button data-action="back-to-admin" style="margin-left:auto; background:rgba(255,255,255,.16); border:none; color:#fff; font-size:11px; font-weight:600; font-family:'Inter',sans-serif; padding:7px 11px; border-radius:8px; cursor:pointer;">← Panel admin</button>`
+          : `<button data-action="logout" style="margin-left:auto; background:rgba(255,255,255,.16); border:none; color:#fff; font-size:11px; font-weight:600; font-family:'Inter',sans-serif; padding:7px 11px; border-radius:8px; cursor:pointer;">Salir</button>`}
       </div>
+      ${ro ? `<div style="flex:0 0 auto; background:#FBEAE8; color:#8A2E26; font-size:11px; font-weight:600; text-align:center; padding:7px 12px;">Vista de ${d.sucursal} · solo lectura (estás como admin)</div>` : ''}
 
       <div class="gv-scroll" style="flex:1 1 auto; overflow-y:auto; padding:16px 16px 96px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
           <button data-action="prev-month" style="width:36px; height:36px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:#6B5A4C; font-size:18px; cursor:pointer;">‹</button>
           <div style="text-align:center; line-height:1.2;">
-            <div style="font-family:'Playfair Display',serif; font-weight:700; font-size:19px;">${f.mesLargo(d.mes)}</div>
-            <div style="font-size:11px; color:${d.mes === Genova.config.MES_ACTUAL ? '#C77700' : '#8A7A6C'}; font-weight:600; letter-spacing:.02em;">${d.mes === Genova.config.MES_ACTUAL ? 'MES EN CURSO' : 'HISTÓRICO'}</div>
+            ${mesSelect(d.mes)}
+            <div style="font-size:11px; color:${d.mes === Genova.config.MES_ACTUAL ? '#C77700' : '#8A7A6C'}; font-weight:600; letter-spacing:.02em; margin-top:4px;">${d.mes === Genova.config.MES_ACTUAL ? 'MES EN CURSO' : 'HISTÓRICO'}</div>
           </div>
           <button ${d.mes === Genova.config.MES_ACTUAL ? '' : 'data-action="next-month"'} style="width:36px; height:36px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:${d.mes === Genova.config.MES_ACTUAL ? '#C8B7A6' : '#6B5A4C'}; font-size:18px; cursor:${d.mes === Genova.config.MES_ACTUAL ? 'not-allowed' : 'pointer'};">›</button>
         </div>
@@ -170,26 +174,26 @@ Genova.views = (function () {
     var sinVenta = !d.ventaCargada
     var st = d.status // 'pendiente' | 'aldia' | 'favor'
 
-    // --- Tarjeta de saldo (arriba) ---
+    // --- Tarjeta de saldo (arriba) --- el monto se muestra siempre, aunque falte la venta.
     var card
-    if (sinVenta) {
-      card = { label: 'Tu saldo a pagar', valColor: '#C0B4A6', val: '$0', badgeBg: '#FBF3E2', badgeFg: '#C77700', badgeText: 'Venta sin cargar', note: 'Monto provisional: el total se calcula cuando la matriz cargue la venta del mes.', noteColor: '#8A6B2E' }
-    } else if (st === 'favor') {
+    if (st === 'favor') {
       card = { label: 'Tu saldo', valColor: '#2E7D4F', val: money(d.saldo), badgeBg: '#E7F1EB', badgeFg: '#2E7D4F', badgeText: 'Saldo a favor', note: 'Pagaste de más: se descuenta del próximo mes.', noteColor: '#6B5A4C' }
     } else if (st === 'aldia') {
       card = { label: 'Tu saldo', valColor: '#2E7D4F', val: '$0', badgeBg: '#E7F1EB', badgeFg: '#2E7D4F', badgeText: 'Al día', note: 'Total del mes ' + money(d.totalMes) + ' · pagaste ' + money(d.pagosTotal), noteColor: '#6B5A4C' }
     } else {
       card = { label: 'Tu saldo a pagar', valColor: '#B3261E', val: money(d.saldo), badgeBg: '#FBEAE8', badgeFg: '#B3261E', badgeText: 'Pendiente de pago', note: 'Total del mes ' + money(d.totalMes) + ' · pagaste ' + money(d.pagosTotal), noteColor: '#6B5A4C' }
     }
-
-    // --- Banda "Saldo" final ---
-    var saldoBanda
+    // Falta la venta del mes: el monto es provisional (suma anexos/2 + saldo anterior − pagos) y subirá al cargarla.
     if (sinVenta) {
-      saldoBanda = `<div style="background:#F5EFE6; border:1px dashed #D9CBBA; border-radius:12px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
-        <span style="font-family:'Playfair Display',serif; font-size:16px; font-weight:700; color:#8A7A6C;">Saldo a pagar</span>
-        <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; color:#C8B7A6;">—</span>
-      </div>`
-    } else if (st === 'favor') {
+      card.label = card.label + ' · provisional'
+      card.badgeBg = '#FBF3E2'; card.badgeFg = '#C77700'; card.badgeText = 'Falta la venta del mes'
+      card.note = 'Provisional: incluye la mitad de los anexos, el saldo anterior y tus pagos. Subirá cuando la matriz cargue la venta.'
+      card.noteColor = '#8A6B2E'
+    }
+
+    // --- Banda "Saldo" final --- (se muestra siempre, aunque falte la venta)
+    var saldoBanda
+    if (st === 'favor') {
       saldoBanda = `<div style="background:#E7F1EB; border-radius:12px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
         <div style="display:flex; flex-direction:column; line-height:1.2;">
           <span style="font-family:'Playfair Display',serif; font-size:16px; font-weight:700; color:#2E7D4F;">Saldo a favor</span>
@@ -209,8 +213,8 @@ Genova.views = (function () {
       </div>`
     }
 
-    // Al día / a favor → CTA secundario (contorno). Pendiente / sin venta → CTA rojo.
-    var ctaSecundario = !sinVenta && (st === 'favor' || st === 'aldia')
+    // Al día / a favor → CTA secundario (contorno). Pendiente → CTA rojo.
+    var ctaSecundario = (st === 'favor' || st === 'aldia')
     var ctaStyle = ctaSecundario
       ? 'background:#fff; color:#C8102E; border:1.5px solid #E7C9C6;'
       : 'background:#C8102E; color:#fff; border:none;'
@@ -240,10 +244,10 @@ Genova.views = (function () {
           </div>
           <div style="background:linear-gradient(180deg,#FBF4E4,#F7ECD3); border:1px solid #EAD9A9; border-radius:12px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
             <div style="display:flex; flex-direction:column; line-height:1.2;">
-              <span style="font-family:'Playfair Display',serif; font-size:15px; font-weight:700;">Total del mes</span>
-              <span style="font-size:11px; color:#8A6B2E; font-weight:500;">${sinVenta ? 'Se calcula al cargar la venta del mes' : 'Las dos mitades + saldo anterior'}</span>
+              <span style="font-family:'Playfair Display',serif; font-size:15px; font-weight:700;">Total del mes${sinVenta ? ' · provisional' : ''}</span>
+              <span style="font-size:11px; color:#8A6B2E; font-weight:500;">${sinVenta ? 'Anexos + saldo anterior (falta la venta)' : 'Las dos mitades + saldo anterior'}</span>
             </div>
-            <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; ${sinVenta ? 'color:#C8B7A6;' : ''}">${sinVenta ? '—' : money(d.totalMes)}</span>
+            <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums;">${money(d.totalMes)}</span>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; padding:14px; margin-top:2px;">
             <span style="font-size:14px; color:#2E7D4F; font-weight:500;">Pagos del mes</span>
@@ -254,7 +258,7 @@ Genova.views = (function () {
       </div>
     </div>
 
-    <button data-action="ftab" data-tab="pagos" style="width:100%; margin-top:16px; ${ctaStyle} border-radius:8px; padding:15px; font-size:15px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; box-shadow:0 2px 8px rgba(43,27,18,0.08);">Registrar un pago</button>`
+    ${state.asFran ? '' : `<button data-action="ftab" data-tab="pagos" style="width:100%; margin-top:16px; ${ctaStyle} border-radius:8px; padding:15px; font-size:15px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; box-shadow:0 2px 8px rgba(43,27,18,0.08);">Registrar un pago</button>`}`
   }
 
   function franAnexos(d, rows) {
@@ -289,7 +293,7 @@ Genova.views = (function () {
     <div style="text-align:center; font-size:12px; color:#8A7A6C; margin-top:16px;">Las cargas las registra la casa matriz.</div>`
   }
 
-  function franPagos(d, rows) {
+  function franPagos(d, rows, ro) {
     var lista = rows.map(function (p) {
       var b = badgePago(p.estado)
       return `<div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #F0EAE0;">
@@ -302,6 +306,7 @@ Genova.views = (function () {
           <div style="display:inline-flex; align-items:center; gap:5px; margin-top:3px; background:${b.bg}; color:${b.fg}; font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px;">
             <span style="width:6px; height:6px; border-radius:50%; background:${b.fg};"></span>${b.label}
           </div>
+          ${(p.estado === 'pending' && !ro) ? `<div style="display:flex; gap:8px; margin-top:8px;">${rowBtns('pago', p)}</div>` : ''}
         </div>
         <div style="flex:0 0 auto; font-size:15px; font-weight:600; font-variant-numeric:tabular-nums;">${money(p.monto)}</div>
       </div>`
@@ -319,9 +324,9 @@ Genova.views = (function () {
         <span style="font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; color:#B3261E;">${money(d.saldo)}</span>
       </div>
     </div>
-    <button data-action="open-modal" data-modal="pago-fran" style="width:100%; margin-bottom:8px; background:#C8102E; color:#fff; border:none; border-radius:8px; padding:15px; font-size:15px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+    ${ro ? '' : `<button data-action="open-modal" data-modal="pago-fran" style="width:100%; margin-bottom:8px; background:#C8102E; color:#fff; border:none; border-radius:8px; padding:15px; font-size:15px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
       ${icon('plus', 18, 2.4)} Registrar un pago
-    </button>
+    </button>`}
     <div style="display:flex; align-items:center; gap:8px; background:#FBF3E2; border:1px solid #EAD9A9; border-radius:8px; padding:10px 12px; margin-bottom:16px;">
       ${icon('info', 16, 2, '#C77700')}
       <span style="font-size:12px; color:#8A6B2E; line-height:1.35;">Los pagos que cargás quedan <b>Por verificar</b> hasta que la matriz los confirme.</span>
@@ -336,7 +341,7 @@ Genova.views = (function () {
     var main = state.aTab === 'resumen' ? adminResumen(d, p)
       : state.aTab === 'anexos' ? adminAnexos(d, data.anexos)
       : state.aTab === 'pagos' ? adminPagos(d, p, data.pagos)
-      : adminConfig(data.usuarios, data.catalogo)
+      : adminConfig(data.usuarios, data.catalogo, data.alias)
 
     var navDef = [['resumen', 'Resumen'], ['anexos', 'Productos anexos'], ['pagos', 'Pagos'], ['config', 'Configuración']]
     var nav = navDef.map(function (n) {
@@ -367,6 +372,7 @@ Genova.views = (function () {
         ${nav}
         <div style="font-size:10px; font-weight:700; letter-spacing:.08em; color:#A89684; text-transform:uppercase; padding:22px 8px 6px;">Sucursales</div>
         ${branches}
+        <button data-action="view-as-fran" style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px; padding:9px 12px; border-radius:8px; border:1px dashed #C8B7A6; background:transparent; color:#6B5A4C; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">${icon('home', 15)} Ver como franquiciado</button>
         <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px 8px; border-top:1px solid #F0EAE0;">
           <div style="width:32px; height:32px; border-radius:50%; background:#2B1B12; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;">${(state.user && state.user.iniciales) || '··'}</div>
           <div style="line-height:1.2; flex:1 1 auto;">
@@ -380,13 +386,28 @@ Genova.views = (function () {
     </div>`
   }
 
+  // Selector de mes/año (nativo → scroll y picker del sistema en mobile).
+  function mesSelect(mes) {
+    var cur = Genova.config.MES_ACTUAL
+    var p = cur.split('-')
+    var y = parseInt(p[0], 10), m = parseInt(p[1], 10)
+    var opts = ''
+    for (var i = 0; i < 36; i++) {
+      var dt = new Date(y, m - 1 - i, 1)
+      var val = dt.getFullYear() + '-' + ('0' + (dt.getMonth() + 1)).slice(-2)
+      opts += '<option value="' + val + '"' + (val === mes ? ' selected' : '') + '>' +
+        f.mesLargo(val) + (val === cur ? ' · en curso' : '') + '</option>'
+    }
+    return '<select data-action="set-mes" style="font-family:\'Playfair Display\',serif; font-weight:700; font-size:17px; text-align:center; text-align-last:center; border:1px solid #E5DDD2; border-radius:8px; padding:8px 12px; background:#FBF7F0; color:#2B1B12; cursor:pointer; -webkit-appearance:none; appearance:none; text-transform:capitalize;">' + opts + '</select>'
+  }
+
   function monthNav(mes) {
     var esActual = mes === Genova.config.MES_ACTUAL
     return `<div style="display:flex; align-items:center; gap:10px;">
       <button data-action="prev-month" style="width:38px; height:38px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:#6B5A4C; font-size:18px; cursor:pointer;">‹</button>
       <div style="text-align:center; min-width:130px;">
-        <div style="font-family:'Playfair Display',serif; font-weight:700; font-size:16px;">${f.mesLargo(mes)}</div>
-        <div style="font-size:10px; color:${esActual ? '#C77700' : '#8A7A6C'}; font-weight:700;">${esActual ? 'MES EN CURSO' : 'HISTÓRICO'}</div>
+        ${mesSelect(mes)}
+        <div style="font-size:10px; color:${esActual ? '#C77700' : '#8A7A6C'}; font-weight:700; margin-top:4px;">${esActual ? 'MES EN CURSO' : 'HISTÓRICO'}</div>
       </div>
       <button ${esActual ? '' : 'data-action="next-month"'} style="width:38px; height:38px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:${esActual ? '#C8B7A6' : '#6B5A4C'}; font-size:18px; cursor:${esActual ? 'not-allowed' : 'pointer'};">›</button>
     </div>`
@@ -418,7 +439,7 @@ Genova.views = (function () {
           <div style="font-size:12px; color:#6B5A4C; margin:2px 0 12px;">Cargala para calcular la mitad que va a la cuenta.</div>
           <div style="display:flex; align-items:center; border:1.5px solid #C8102E; border-radius:8px; overflow:hidden;">
             <span style="padding:0 8px 0 14px; font-size:20px; font-weight:600; color:#6B5A4C;">$</span>
-            <input id="gv-venta" value="${f.plain(d.venta)}" inputmode="numeric" style="flex:1 1 auto; border:none; outline:none; padding:13px 14px 13px 0; font-size:20px; font-weight:700; font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; background:transparent;">
+            <input id="gv-venta" value="${f.plain(d.venta)}" data-num inputmode="decimal" style="flex:1 1 auto; border:none; outline:none; padding:13px 14px 13px 0; font-size:20px; font-weight:700; font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; background:transparent;">
             <button data-action="save-venta" style="margin:6px; background:#C8102E; color:#fff; border:none; border-radius:6px; padding:9px 18px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Guardar</button>
           </div>
           <div style="font-size:12px; color:#6B5A4C; margin-top:10px;">Última carga: hoy, 09:41 · Roberto G.</div>
@@ -451,7 +472,7 @@ Genova.views = (function () {
   }
 
   function adminAnexos(d, rows) {
-    var cols = '120px 1fr 130px 140px 140px'
+    var cols = '104px 1fr 100px 120px 120px 160px'
     var body = rows.map(function (r) {
       return `<div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:14px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
         <span style="font-size:14px; font-variant-numeric:tabular-nums;">${f.dmy(r.fecha)}</span>
@@ -459,6 +480,7 @@ Genova.views = (function () {
         <span style="font-size:14px; text-align:right; color:#6B5A4C;">${r.cantidad} ${f.unidadAbbr(r.unidad)}</span>
         <span style="font-size:14px; text-align:right; font-variant-numeric:tabular-nums;">${money(r.precioUnit)}</span>
         <span style="font-size:14px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(r.subtotal)}</span>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">${rowBtns('anexo', r)}</div>
       </div>`
     }).join('')
 
@@ -469,7 +491,7 @@ Genova.views = (function () {
     </div>
     <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
       <div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:13px 20px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
-        ${th('Fecha')}${th('Producto')}${th('Cantidad', true)}${th('Precio', true)}${th('Subtotal', true)}
+        ${th('Fecha')}${th('Producto')}${th('Cantidad', true)}${th('Precio', true)}${th('Subtotal', true)}${th('Acción', true)}
       </div>
       ${body}
       <div style="display:grid; grid-template-columns:1fr 140px; gap:14px; padding:16px 20px; background:#FBF7F0;">
@@ -480,7 +502,7 @@ Genova.views = (function () {
   }
 
   function adminPagos(d, p, rows) {
-    var cols = '120px 1fr 150px 150px 220px'
+    var cols = '104px 1fr 130px 120px 270px'
     var pendBorder = d.pendCount > 0 ? '#C77700' : '#E5DDD2'
     var pendColor = d.pendCount > 0 ? '#C77700' : '#6B5A4C'
     var pendText = d.pendCount > 0 ? (d.pendCount + (d.pendCount === 1 ? ' pago' : ' pagos') + ' esperando confirmación') : 'Sin pagos pendientes'
@@ -488,12 +510,10 @@ Genova.views = (function () {
 
     var body = rows.map(function (r) {
       var b = badgePago(r.estado)
-      var accion = r.estado === 'pending'
-        ? `<div style="display:flex; gap:8px; justify-content:flex-end;">
-            <button data-action="verify-pago" data-id="${r._row}" style="background:#2E7D4F; color:#fff; border:none; border-radius:6px; padding:7px 14px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Verificar</button>
-            <button data-action="reject-pago" data-id="${r._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; border-radius:6px; padding:7px 14px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Rechazar</button>
-          </div>`
-        : `<span style="font-size:13px; color:#8A7A6C;">Confirmado</span>`
+      var verificar = r.estado === 'pending'
+        ? `<button data-action="verify-pago" data-id="${r._row}" style="background:#2E7D4F; color:#fff; border:none; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Verificar</button>`
+        : ''
+      var accion = `<div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">${verificar}${rowBtns('pago', r)}</div>`
       return `<div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:15px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
         <span style="font-size:14px; font-variant-numeric:tabular-nums;">${f.dmy(r.fecha)}</span>
         <span style="font-size:14px; font-weight:600;">${r.concepto}</span>
@@ -521,45 +541,94 @@ Genova.views = (function () {
     </div>`
   }
 
-  function adminConfig(usuarios, catalogo) {
+  // Tarjeta con encabezado clickeable que colapsa su contenido (toggle por JS).
+  // Arranca colapsada; el header dispara la acción 'collap' que muestra/oculta #id.
+  function collapCard(id, title, subtitle, inner, borderColor) {
+    return `<div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden; margin-bottom:24px;${borderColor ? ' border-left:4px solid ' + borderColor + ';' : ''}">
+      <div data-action="collap" data-target="${id}" style="cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:12px; padding:18px 22px;">
+        <div>
+          <div style="font-family:'Playfair Display',serif; font-weight:600; font-size:17px;">${title}</div>
+          ${subtitle ? `<div style="font-size:12px; color:#6B5A4C; margin-top:2px;">${subtitle}</div>` : ''}
+        </div>
+        <span class="gv-chev" style="color:#C8B7A6; font-size:12px; transition:transform .15s; transform:rotate(-90deg);">▼</span>
+      </div>
+      <div id="${id}" style="display:none; border-top:1px solid #F0EAE0;">${inner}</div>
+    </div>`
+  }
+
+  function adminConfig(usuarios, catalogo, alias) {
+    var cuentasCols = '1fr 1fr 1fr 160px'
+    var cuentas = (Array.isArray(alias) ? alias : []).map(function (c) {
+      var dataAttrs = `data-id="${c._row}" data-concepto="${encodeURIComponent(c.concepto || '')}" data-cbu="${encodeURIComponent(c.aliasCbu || '')}" data-titular="${encodeURIComponent(c.titular || '')}"`
+      var btn = 'border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:\'Inter\',sans-serif; cursor:pointer;'
+      return `<div style="display:grid; grid-template-columns:${cuentasCols}; gap:12px; padding:13px 22px; border-bottom:1px solid #F0EAE0; align-items:center;">
+        <span style="font-size:14px; font-weight:600;">${c.concepto || '—'}</span>
+        <span style="font-size:13px; color:#6B5A4C; word-break:break-all;">${c.aliasCbu || '—'}</span>
+        <span style="font-size:13px; color:#6B5A4C;">${c.titular || '—'}</span>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button data-action="edit-cuenta" ${dataAttrs} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${btn}">Editar</button>
+          <button data-action="del-cuenta" data-id="${c._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; ${btn}">Eliminar</button>
+        </div>
+      </div>`
+    }).join('')
+    var aliasInner = `
+      <div style="padding:14px 22px;">
+        <button data-action="open-modal" data-modal="cuenta" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:inline-flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Nueva cuenta</button>
+      </div>
+      <div style="display:grid; grid-template-columns:${cuentasCols}; gap:12px; padding:12px 22px; background:#FAF6F0; border-top:1px solid #F0EAE0; border-bottom:1px solid #F0EAE0;">
+        ${th('Concepto')}${th('Alias / CBU')}${th('Titular')}${th('Acción', true)}
+      </div>
+      ${cuentas || `<div style="padding:16px 22px; font-size:13px; color:#8A7A6C;">Todavía no hay cuentas cargadas.</div>`}`
+
+    var miniBtn = 'border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:\'Inter\',sans-serif; cursor:pointer;'
     var lista = usuarios.filter(function (u) { return u.rol === 'franquiciado' }).map(function (u) {
       var b = u.estado === 'Activo' ? { bg: '#E7F1EB', fg: '#2E7D4F' } : { bg: '#FBF3E2', fg: '#C77700' }
+      var uData = `data-id="${u._row}" data-nombre="${encodeURIComponent(u.nombre || '')}" data-iniciales="${encodeURIComponent(u.iniciales || '')}" data-sucursal="${encodeURIComponent(u.sucursal || '')}" data-email="${encodeURIComponent(u.email || '')}" data-estado="${encodeURIComponent(u.estado || '')}"`
       return `<div style="display:flex; align-items:center; gap:13px; padding:14px 22px; border-bottom:1px solid #F0EAE0;">
         <div style="width:38px; height:38px; border-radius:50%; background:#FBEAE8; color:#C8102E; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex:0 0 auto;">${u.iniciales}</div>
         <div style="flex:1 1 auto; min-width:0;"><div style="font-size:14px; font-weight:600;">${u.nombre}</div><div style="font-size:12px; color:#6B5A4C;">${u.sucursal} · ${u.email}</div></div>
         <span style="display:inline-flex; align-items:center; gap:6px; background:${b.bg}; color:${b.fg}; font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;"><span style="width:6px; height:6px; border-radius:50%; background:${b.fg};"></span>${u.estado}</span>
+        <div style="display:flex; gap:8px; flex:0 0 auto;">
+          <button data-action="edit-usuario" ${uData} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${miniBtn}">Editar</button>
+          <button data-action="del-usuario" data-id="${u._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; ${miniBtn}">Eliminar</button>
+        </div>
       </div>`
     }).join('')
 
+    var catCols = '1fr 90px 110px 150px'
     var cat = catalogo.map(function (c) {
-      return `<div style="display:grid; grid-template-columns:1fr 120px 140px; gap:12px; padding:13px 22px; border-bottom:1px solid #F0EAE0; align-items:center;">
+      var cData = `data-id="${c._row}" data-producto="${encodeURIComponent(c.producto || '')}" data-unidad="${encodeURIComponent(c.unidad || '')}" data-precio="${c.precio}"`
+      return `<div style="display:grid; grid-template-columns:${catCols}; gap:12px; padding:13px 22px; border-bottom:1px solid #F0EAE0; align-items:center;">
         <span style="font-size:14px; font-weight:600;">${c.producto}</span>
         <span style="font-size:13px; color:#6B5A4C;">${c.unidad}</span>
         <span style="font-size:14px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(c.precio)}</span>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button data-action="edit-producto" ${cData} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${miniBtn}">Editar</button>
+          <button data-action="del-producto" data-id="${c._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; ${miniBtn}">Eliminar</button>
+        </div>
       </div>`
     }).join('')
 
+    var catInner = `
+      <div style="padding:14px 22px;">
+        <button data-action="open-modal" data-modal="producto" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:inline-flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Nuevo producto</button>
+      </div>
+      <div style="display:grid; grid-template-columns:${catCols}; gap:12px; padding:12px 22px; background:#FAF6F0; border-top:1px solid #F0EAE0; border-bottom:1px solid #F0EAE0;">
+        ${th('Producto')}${th('Unidad')}${th('Precio vigente', true)}${th('Acción', true)}
+      </div>
+      ${cat || `<div style="padding:16px 22px; font-size:13px; color:#8A7A6C;">Todavía no hay productos cargados.</div>`}`
+
     return `
-    <div style="margin-bottom:24px;"><h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Configuración</h1><div style="font-size:13px; color:#6B5A4C; margin-top:6px;">Accesos de franquiciados y catálogo maestro de productos anexos.</div></div>
-    <div style="display:grid; grid-template-columns:1fr 1.25fr; gap:24px; align-items:start;">
-      <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid #F0EAE0;">
-          <div><div style="font-family:'Playfair Display',serif; font-weight:600; font-size:17px;">Franquiciados</div><div style="font-size:12px; color:#6B5A4C; margin-top:2px;">Un acceso por sucursal.</div></div>
-          <button data-action="open-modal" data-modal="usuario" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Alta</button>
-        </div>
-        ${lista}
+    <div style="margin-bottom:24px;"><h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Configuración</h1><div style="font-size:13px; color:#6B5A4C; margin-top:6px;">Tocá cada sección para expandir o colapsar.</div></div>
+    ${collapCard('gv-collap-alias', 'Cuentas para cobros (alias / CBU) · ' + (Array.isArray(alias) ? alias.length : 0), 'Se le muestran al franquiciado al registrar un pago, para que copie el alias o CBU.', aliasInner, '#C8102E')}
+    <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden; margin-bottom:24px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid #F0EAE0;">
+        <div><div style="font-family:'Playfair Display',serif; font-weight:600; font-size:17px;">Franquiciados</div><div style="font-size:12px; color:#6B5A4C; margin-top:2px;">Un acceso por sucursal.</div></div>
+        <button data-action="open-modal" data-modal="usuario" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Alta</button>
       </div>
-      <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid #F0EAE0;">
-          <div><div style="font-family:'Playfair Display',serif; font-weight:600; font-size:17px;">Catálogo de productos anexos</div><div style="font-size:12px; color:#6B5A4C; margin-top:2px;">Precio vigente que se aplica al cargar anexos.</div></div>
-          <button data-action="open-modal" data-modal="producto" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Nuevo producto</button>
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 120px 140px; gap:12px; padding:12px 22px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
-          ${th('Producto')}${th('Unidad')}${th('Precio vigente', true)}
-        </div>
-        ${cat}
-      </div>
-    </div>`
+      ${lista}
+    </div>
+    ${collapCard('gv-collap-cat', 'Catálogo de productos anexos · ' + catalogo.length, 'Precio vigente que se aplica al cargar anexos.', catInner)}`
   }
 
   // ============================ MODALES (admin) ============================
@@ -586,17 +655,54 @@ Genova.views = (function () {
     </div>`
   }
 
+  function escAttr(s) {
+    return String(s == null ? '' : s).replace(/"/g, '&quot;')
+  }
+  // Botones Editar / Eliminar de una fila (mismo look en admin y franquiciado).
+  function rowBtns(entity, r) {
+    var base = 'border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:\'Inter\',sans-serif; cursor:pointer;'
+    var data = entity === 'anexo'
+      ? `data-id="${r._row}" data-producto="${encodeURIComponent(r.producto)}" data-cantidad="${r.cantidad}" data-fecha="${r.fecha}"`
+      : `data-id="${r._row}" data-concepto="${encodeURIComponent(r.concepto)}" data-monto="${r.monto}" data-fecha="${r.fecha}"`
+    return `<button data-action="edit-${entity}" ${data} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${base}">Editar</button>
+      <button data-action="del-${entity}" data-id="${r._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; ${base}">Eliminar</button>`
+  }
+
+  function editPagoOverlay(state) {
+    var e = state.edit || {}
+    return overlay('Editar pago', 'save-edit-pago',
+      campo('Concepto', `<input id="gv-pago-concepto" value="${escAttr(e.concepto)}" style="${inputBase}">`) +
+      campo('Monto', `<input id="gv-pago-monto" value="${e.monto || ''}" inputmode="numeric" style="${inputBase}">`) +
+      campo('Fecha (dd/mm/aaaa)', `<input id="gv-fecha" value="${e.fecha ? f.dmy(e.fecha) : ''}" placeholder="dd/mm/aaaa" inputmode="numeric" style="${inputBase}">`))
+  }
+
   function adminModal(state, data) {
     if (!state.modal) return ''
+    if (state.modal === 'cuenta' || state.modal === 'edit-cuenta') {
+      var ec = state.modal === 'edit-cuenta' ? (state.edit || {}) : {}
+      var saveC = state.modal === 'edit-cuenta' ? 'save-edit-cuenta' : 'save-cuenta'
+      return overlay(state.modal === 'edit-cuenta' ? 'Editar cuenta' : 'Nueva cuenta para cobros', saveC,
+        campo('Concepto', `<input id="gv-cuenta-concepto" value="${escAttr(ec.concepto)}" placeholder="Ej: Transferencia bancaria" style="${inputBase}">`) +
+        campo('Alias o CBU', `<input id="gv-cuenta-cbu" value="${escAttr(ec.aliasCbu)}" placeholder="Ej: genova.pastas / 01700..." style="${inputBase}">`) +
+        campo('Nombre en la cuenta', `<input id="gv-cuenta-titular" value="${escAttr(ec.titular)}" placeholder="Ej: Roberto Genova S.A." style="${inputBase}">`))
+    }
+    if (state.modal === 'edit-pago') return editPagoOverlay(state)
+    if (state.modal === 'edit-anexo') {
+      var e = state.edit || {}
+      var eopts = (data.catalogo || []).map(function (c) {
+        return `<option value="${escAttr(c.producto)}" data-unidad="${c.unidad}" data-precio="${c.precio}"${c.producto === e.producto ? ' selected' : ''}>${c.producto} · ${money(c.precio)}</option>`
+      }).join('')
+      return overlay('Editar producto anexo', 'save-edit-anexo',
+        campo('Producto', `<select id="gv-anexo-producto" style="${inputBase}">${eopts}</select>`) +
+        campo('Cantidad', `<input id="gv-anexo-cantidad" value="${e.cantidad ? f.plain(e.cantidad) : ''}" data-num inputmode="decimal" style="${inputBase}">`) +
+        campo('Fecha (dd/mm/aaaa)', `<input id="gv-fecha" value="${e.fecha ? f.dmy(e.fecha) : ''}" placeholder="dd/mm/aaaa" inputmode="numeric" style="${inputBase}">`))
+    }
     var hoy = new Date()
     var hoyDDMM = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2)
     var fechaCampo = campo('Fecha (dd/mm)', `<input id="gv-fecha" value="${hoyDDMM}" placeholder="dd/mm" inputmode="numeric" style="${inputBase}">`)
 
     if (state.modal === 'pago') {
-      return overlay('Registrar pago', 'save-pago',
-        campo('Concepto', `<input id="gv-pago-concepto" placeholder="Ej: Transferencia" style="${inputBase}">`) +
-        campo('Monto', `<input id="gv-pago-monto" inputmode="numeric" placeholder="0" style="${inputBase}">`) +
-        fechaCampo)
+      return overlay('Registrar pago', 'save-pago', pagoFields(data.alias))
     }
 
     if (state.modal === 'anexo') {
@@ -605,39 +711,80 @@ Genova.views = (function () {
       }).join('')
       return overlay('Cargar producto', 'save-anexo',
         campo('Producto', `<select id="gv-anexo-producto" style="${inputBase}">${opts}</select>`) +
-        campo('Cantidad', `<input id="gv-anexo-cantidad" inputmode="numeric" placeholder="0" style="${inputBase}">`) +
+        campo('Cantidad', `<input id="gv-anexo-cantidad" data-num inputmode="decimal" placeholder="0" style="${inputBase}">`) +
         fechaCampo)
     }
 
-    if (state.modal === 'usuario') {
+    if (state.modal === 'usuario' || state.modal === 'edit-usuario') {
+      var eu = state.modal === 'edit-usuario' ? (state.edit || {}) : {}
+      var saveU = state.modal === 'edit-usuario' ? 'save-edit-usuario' : 'save-usuario'
       var sucs = (data.sucursales || []).map(function (s) {
-        return `<option value="${s.nombre}">${s.nombre}</option>`
+        return `<option value="${escAttr(s.nombre)}"${s.nombre === eu.sucursal ? ' selected' : ''}>${s.nombre}</option>`
       }).join('')
-      return overlay('Alta de franquiciado', 'save-usuario',
-        campo('Nombre', `<input id="gv-user-nombre" style="${inputBase}">`) +
-        campo('Iniciales', `<input id="gv-user-iniciales" maxlength="3" placeholder="Ej: MF" style="${inputBase}">`) +
+      var ests = ['Activo', 'Inactivo'].map(function (x) {
+        return `<option value="${x}"${(eu.estado || 'Activo') === x ? ' selected' : ''}>${x}</option>`
+      }).join('')
+      return overlay(state.modal === 'edit-usuario' ? 'Editar franquiciado' : 'Alta de franquiciado', saveU,
+        campo('Nombre', `<input id="gv-user-nombre" value="${escAttr(eu.nombre)}" style="${inputBase}">`) +
+        campo('Iniciales', `<input id="gv-user-iniciales" value="${escAttr(eu.iniciales)}" maxlength="3" placeholder="Ej: MF" style="${inputBase}">`) +
         campo('Sucursal', `<select id="gv-user-sucursal" style="${inputBase}">${sucs}</select>`) +
-        campo('Email', `<input id="gv-user-email" type="email" style="${inputBase}">`))
+        campo('Email', `<input id="gv-user-email" type="email" value="${escAttr(eu.email)}" style="${inputBase}">`) +
+        (state.modal === 'edit-usuario' ? campo('Estado', `<select id="gv-user-estado" style="${inputBase}">${ests}</select>`) : ''))
     }
 
-    if (state.modal === 'producto') {
-      return overlay('Nuevo producto', 'save-producto',
-        campo('Producto', `<input id="gv-prod-nombre" style="${inputBase}">`) +
-        campo('Unidad', `<input id="gv-prod-unidad" placeholder="Ej: docena, kg, plancha" style="${inputBase}">`) +
-        campo('Precio', `<input id="gv-prod-precio" inputmode="numeric" placeholder="0" style="${inputBase}">`))
+    if (state.modal === 'producto' || state.modal === 'edit-producto') {
+      var ep = state.modal === 'edit-producto' ? (state.edit || {}) : {}
+      var saveP = state.modal === 'edit-producto' ? 'save-edit-producto' : 'save-producto'
+      return overlay(state.modal === 'edit-producto' ? 'Editar producto' : 'Nuevo producto', saveP,
+        campo('Producto', `<input id="gv-prod-nombre" value="${escAttr(ep.producto)}" style="${inputBase}">`) +
+        campo('Unidad', `<input id="gv-prod-unidad" value="${escAttr(ep.unidad)}" placeholder="Ej: docena, kg, plancha" style="${inputBase}">`) +
+        campo('Precio', `<input id="gv-prod-precio" value="${ep.precio ? f.plain(ep.precio) : ''}" data-num inputmode="decimal" placeholder="0" style="${inputBase}">`))
     }
 
     return ''
   }
 
-  function franModal(state) {
-    if (state.modal !== 'pago-fran') return ''
+  // Ícono de copiar (clipboard).
+  function copyIcon() {
+    return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto;"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`
+  }
+
+  // Campos compartidos del modal "Registrar pago" (admin y franquiciado):
+  // Concepto = desplegable de cuentas; debajo alias/CBU + titular (según la cuenta) con Copiar; luego monto y fecha.
+  function pagoFields(cuentas) {
     var hoy = new Date()
     var hoyDDMM = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2)
-    return overlay('Registrar un pago', 'save-pago-fran',
-      campo('Concepto', `<input id="gv-fpago-concepto" placeholder="Ej: Transferencia" style="${inputBase}">`) +
-      campo('Monto', `<input id="gv-fpago-monto" inputmode="numeric" placeholder="0" style="${inputBase}">`) +
-      campo('Fecha (dd/mm)', `<input id="gv-fecha" value="${hoyDDMM}" placeholder="dd/mm" inputmode="numeric" style="${inputBase}">`))
+    var montoFecha =
+      campo('Monto', `<input id="gv-pago-monto" data-num inputmode="decimal" placeholder="0" style="${inputBase}">`) +
+      campo('Fecha (dd/mm)', `<input id="gv-fecha" value="${hoyDDMM}" placeholder="dd/mm" inputmode="numeric" style="${inputBase}">`)
+
+    if (!cuentas || !cuentas.length) {
+      return campo('Concepto', `<input id="gv-pago-concepto" placeholder="Ej: Transferencia" style="${inputBase}">`) + montoFecha
+    }
+
+    var opts = cuentas.map(function (c, i) {
+      return `<option value="${escAttr(c.concepto)}" data-cbu="${escAttr(c.aliasCbu || '')}" data-titular="${escAttr(c.titular || '')}"${i === 0 ? ' selected' : ''}>${c.concepto}</option>`
+    }).join('')
+    var first = cuentas[0]
+
+    return campo('Concepto', `<select id="gv-pago-concepto" data-action="pick-cuenta" style="${inputBase}">${opts}</select>`) +
+      `<div style="background:#FBF7F0; border:1px solid #E5DDD2; border-radius:10px; padding:12px 14px; margin-bottom:14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div style="min-width:0;">
+            <div style="font-size:11px; color:#6B5A4C;">Alias / CBU</div>
+            <div id="gv-cuenta-alias" style="font-size:15px; font-weight:700; word-break:break-all;">${first.aliasCbu || '—'}</div>
+          </div>
+          <button data-action="copy-alias" id="gv-cuenta-copy" data-text="${escAttr(first.aliasCbu || '')}" title="Copiar" style="flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; background:#C8102E; color:#fff; border:none; border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">${copyIcon()} Copiar</button>
+        </div>
+        <div style="font-size:12px; color:#6B5A4C; margin-top:8px;">Titular: <span id="gv-cuenta-titular" style="font-weight:600; color:#2B1B12;">${first.titular || '—'}</span></div>
+      </div>` +
+      montoFecha
+  }
+
+  function franModal(state, data) {
+    if (state.modal === 'edit-pago') return editPagoOverlay(state)
+    if (state.modal !== 'pago-fran') return ''
+    return overlay('Registrar un pago', 'save-pago-fran', pagoFields((data && data.alias) || []))
   }
 
   return { login: login, booting: booting, denied: denied, franchisee: franchisee, admin: admin, adminModal: adminModal, franModal: franModal }
