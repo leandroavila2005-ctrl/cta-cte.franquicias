@@ -65,12 +65,17 @@ Genova.api = (function () {
       return Promise.resolve(true)
     }
 
-    return { list: list, dashboard: dashboard, create: create, update: update, remove: remove }
+    function me() { return Promise.resolve({ email: 'demo', rol: 'admin', sucursal: '' }) }
+
+    return { me: me, list: list, dashboard: dashboard, create: create, update: update, remove: remove }
   }
 
   // ============================ MODO REAL ============================
   // Habla con backend/Code.gs publicado como Web App.
   function real() {
+    function tok() {
+      return (Genova.auth && Genova.auth.token && Genova.auth.token()) || ''
+    }
     function qs(params) {
       return Object.keys(params)
         .filter(function (k) { return params[k] != null })
@@ -78,18 +83,21 @@ Genova.api = (function () {
         .join('&')
     }
     function get(params) {
-      return fetch(cfg.API_URL + '?' + qs(params)).then(function (r) { return r.json() })
+      return fetch(cfg.API_URL + '?' + qs(Object.assign({ token: tok() }, params))).then(function (r) { return r.json() })
     }
     function post(body) {
       return fetch(cfg.API_URL, {
         method: 'POST',
         // texto plano evita el "preflight" CORS que Apps Script no maneja
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(Object.assign({ token: tok() }, body)),
       }).then(function (r) { return r.json() })
     }
 
     return {
+      me: function () {
+        return get({ action: 'me' })
+      },
       list: function (entidad, filtros) {
         return get(Object.assign({ action: 'list', entity: entidad }, filtros || []))
       },

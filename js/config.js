@@ -15,7 +15,12 @@
 window.Genova = window.Genova || {}
 
 Genova.config = {
-  DEMO_MODE: true,
-  API_URL: '', // ej: 'https://script.google.com/macros/s/AKfy.../exec'
+  DEMO_MODE: false,
+  API_URL: 'https://script.google.com/macros/s/AKfycbxBOtv1IXOEnl8oTxWR3QVibrtyKFZXDJJQm0NwAXUVbiYQ0Gir84XzCZy4Qt7ve3Xp0A/exec',
   MES_ACTUAL: '2026-07', // mes en curso (formato AAAA-MM)
+
+  // OAuth 2.0 Client ID (tipo "Aplicación web") de Google Cloud Console.
+  // Debe coincidir con CONFIG.OAUTH_CLIENT_ID en backend/Code.gs.
+  // Solo se usa cuando DEMO_MODE es false (login real con Google).
+  OAUTH_CLIENT_ID: '765769748516-mh6n43lpjsu1hcjuidm5s0jthkvu6oi4.apps.googleusercontent.com',
 }

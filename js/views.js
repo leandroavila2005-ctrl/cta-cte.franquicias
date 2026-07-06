@@ -27,7 +27,7 @@ Genova.views = (function () {
   }
 
   // ============================ LOGIN ============================
-  function login() {
+  function cardShell(inner) {
     return `
     <div style="width:440px; background:#FAF6F0; border-radius:20px; box-shadow:0 8px 32px rgba(43,27,18,0.14); padding:40px 36px; text-align:center;">
       <div style="width:76px; height:76px; margin:0 auto 18px; border-radius:50%; background:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:8px;">
@@ -35,8 +35,13 @@ Genova.views = (function () {
       </div>
       <h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:26px; line-height:1.1;">Pastas Genova</h1>
       <div style="font-size:13px; color:#6B5A4C; margin-top:6px; margin-bottom:28px;">Cuenta corriente de franquicias</div>
-      <div style="text-align:left; font-size:11px; font-weight:700; letter-spacing:.06em; color:#A89684; text-transform:uppercase; margin-bottom:10px;">Ingresar como</div>
+      ${inner}
+    </div>`
+  }
 
+  function loginRoles() {
+    return `
+      <div style="text-align:left; font-size:11px; font-weight:700; letter-spacing:.06em; color:#A89684; text-transform:uppercase; margin-bottom:10px;">Ingresar como</div>
       <button data-action="login-admin" class="gv-role" style="width:100%; display:flex; align-items:center; gap:14px; background:#fff; border:1px solid #E5DDD2; border-radius:12px; padding:16px 18px; margin-bottom:12px; cursor:pointer; text-align:left; font-family:'Inter',sans-serif;">
         <div style="width:44px; height:44px; border-radius:10px; background:#FBEAE8; color:#C8102E; display:flex; align-items:center; justify-content:center; flex:0 0 auto;">${icon('user', 22)}</div>
         <div style="flex:1 1 auto;">
@@ -45,7 +50,6 @@ Genova.views = (function () {
         </div>
         <span style="color:#C8B7A6; font-size:20px;">›</span>
       </button>
-
       <button data-action="login-fran" class="gv-role" style="width:100%; display:flex; align-items:center; gap:14px; background:#fff; border:1px solid #E5DDD2; border-radius:12px; padding:16px 18px; cursor:pointer; text-align:left; font-family:'Inter',sans-serif;">
         <div style="width:44px; height:44px; border-radius:10px; background:#FBEAE8; color:#C8102E; display:flex; align-items:center; justify-content:center; flex:0 0 auto;">${icon('home', 22)}</div>
         <div style="flex:1 1 auto;">
@@ -54,9 +58,31 @@ Genova.views = (function () {
         </div>
         <span style="color:#C8B7A6; font-size:20px;">›</span>
       </button>
+      <div style="font-size:11px; color:#A89684; margin-top:24px;">Prototipo · elegí un rol para recorrer la app</div>`
+  }
 
-      <div style="font-size:11px; color:#A89684; margin-top:24px;">Prototipo · elegí un rol para recorrer la app</div>
-    </div>`
+  function loginGoogle() {
+    return `
+      <p style="font-size:13px; color:#6B5A4C; line-height:1.45; margin-bottom:20px;">Acceso exclusivo para usuarios autorizados. Iniciá sesión con tu cuenta de Google.</p>
+      <button data-action="google-login" style="width:100%; display:flex; align-items:center; justify-content:center; gap:12px; background:#C8102E; color:#fff; border:none; border-radius:12px; padding:16px 18px; cursor:pointer; font-family:'Inter',sans-serif; font-size:15px; font-weight:600;">${icon('user', 20)} Continuar con Google</button>
+      <div id="gv-google-fallback" style="margin-top:14px; display:flex; justify-content:center;"></div>
+      <div style="font-size:11px; color:#A89684; margin-top:24px;">Si no podés entrar, pedile al administrador que te dé de alta.</div>`
+  }
+
+  function login() {
+    return cardShell(Genova.config.DEMO_MODE ? loginRoles() : loginGoogle())
+  }
+
+  function booting() {
+    return cardShell(`<div style="font-size:14px; color:#6B5A4C;">Verificando acceso…</div>`)
+  }
+
+  function denied(email) {
+    return cardShell(`
+      <div style="width:52px; height:52px; margin:0 auto 14px; border-radius:50%; background:#FBEAE8; color:#B3261E; display:flex; align-items:center; justify-content:center;">${icon('info', 26, 2, '#B3261E')}</div>
+      <h2 style="font-family:'Playfair Display',serif; font-weight:700; font-size:20px;">Acceso denegado</h2>
+      <p style="font-size:13px; color:#6B5A4C; line-height:1.45; margin:10px 0 20px;">La cuenta <b>${email || ''}</b> no está autorizada. Pedile al administrador que te dé de alta en Configuración.</p>
+      <button data-action="logout" style="width:100%; background:#fff; color:#C8102E; border:1.5px solid #E7C9C6; border-radius:12px; padding:14px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Probar con otra cuenta</button>`)
   }
 
   // ============================ FRANQUICIADO (mobile) ============================
@@ -121,17 +147,80 @@ Genova.views = (function () {
     </div>`
   }
 
+  // Grupo "Venta del mes" del detalle cuando la matriz todavía no cargó la venta.
+  function ventaSinCargar() {
+    return `
+    <div style="background:#FFFFFF; border:1px dashed #D9CBBA; border-radius:12px; padding:12px 14px; margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-size:13px; color:#6B5A4C;">Venta del mes</span>
+        <span style="display:inline-flex; align-items:center; gap:6px; background:#FBF3E2; color:#C77700; font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px;">Sin cargar</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; padding-top:8px; border-top:1px dashed #E5DDD2;">
+        <span style="display:inline-flex; align-items:center; gap:6px; font-size:13px; font-weight:600; color:#A89684;"><span style="background:#F1EADF; color:#A89684; font-size:11px; font-weight:700; padding:1px 6px; border-radius:5px;">÷2</span> Te toca la mitad</span>
+        <span style="font-size:17px; font-weight:700; font-variant-numeric:tabular-nums; color:#C8B7A6;">—</span>
+      </div>
+    </div>`
+  }
+
   function franResumen(state, d) {
     var chevron = state.det ? 'rotate(180deg)' : 'rotate(0deg)'
     var detMax = state.det ? '760px' : '0px'
+    var sinVenta = !d.ventaCargada
+    var st = d.status // 'pendiente' | 'aldia' | 'favor'
+
+    // --- Tarjeta de saldo (arriba) ---
+    var card
+    if (sinVenta) {
+      card = { label: 'Tu saldo a pagar', valColor: '#C0B4A6', val: '$0', badgeBg: '#FBF3E2', badgeFg: '#C77700', badgeText: 'Venta sin cargar', note: 'Monto provisional: el total se calcula cuando la matriz cargue la venta del mes.', noteColor: '#8A6B2E' }
+    } else if (st === 'favor') {
+      card = { label: 'Tu saldo', valColor: '#2E7D4F', val: money(d.saldo), badgeBg: '#E7F1EB', badgeFg: '#2E7D4F', badgeText: 'Saldo a favor', note: 'Pagaste de más: se descuenta del próximo mes.', noteColor: '#6B5A4C' }
+    } else if (st === 'aldia') {
+      card = { label: 'Tu saldo', valColor: '#2E7D4F', val: '$0', badgeBg: '#E7F1EB', badgeFg: '#2E7D4F', badgeText: 'Al día', note: 'Total del mes ' + money(d.totalMes) + ' · pagaste ' + money(d.pagosTotal), noteColor: '#6B5A4C' }
+    } else {
+      card = { label: 'Tu saldo a pagar', valColor: '#B3261E', val: money(d.saldo), badgeBg: '#FBEAE8', badgeFg: '#B3261E', badgeText: 'Pendiente de pago', note: 'Total del mes ' + money(d.totalMes) + ' · pagaste ' + money(d.pagosTotal), noteColor: '#6B5A4C' }
+    }
+
+    // --- Banda "Saldo" final ---
+    var saldoBanda
+    if (sinVenta) {
+      saldoBanda = `<div style="background:#F5EFE6; border:1px dashed #D9CBBA; border-radius:12px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-family:'Playfair Display',serif; font-size:16px; font-weight:700; color:#8A7A6C;">Saldo a pagar</span>
+        <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; color:#C8B7A6;">—</span>
+      </div>`
+    } else if (st === 'favor') {
+      saldoBanda = `<div style="background:#E7F1EB; border-radius:12px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
+        <div style="display:flex; flex-direction:column; line-height:1.2;">
+          <span style="font-family:'Playfair Display',serif; font-size:16px; font-weight:700; color:#2E7D4F;">Saldo a favor</span>
+          <span style="font-size:11px; color:#3F7D5C; font-weight:500;">Queda como crédito para el próximo mes</span>
+        </div>
+        <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; color:#2E7D4F;">${money(d.saldo)}</span>
+      </div>`
+    } else if (st === 'aldia') {
+      saldoBanda = `<div style="background:#E7F1EB; border-radius:12px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-family:'Playfair Display',serif; font-size:16px; font-weight:700; color:#2E7D4F;">Saldo</span>
+        <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; color:#2E7D4F;">$0</span>
+      </div>`
+    } else {
+      saldoBanda = `<div style="background:#FBEAE8; border-radius:12px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-family:'Playfair Display',serif; font-size:16px; font-weight:700; color:#B3261E;">Saldo a pagar</span>
+        <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; color:#B3261E;">${money(d.saldo)}</span>
+      </div>`
+    }
+
+    // Al día / a favor → CTA secundario (contorno). Pendiente / sin venta → CTA rojo.
+    var ctaSecundario = !sinVenta && (st === 'favor' || st === 'aldia')
+    var ctaStyle = ctaSecundario
+      ? 'background:#fff; color:#C8102E; border:1.5px solid #E7C9C6;'
+      : 'background:#C8102E; color:#fff; border:none;'
+
     return `
     <div style="background:#FFFFFF; border-radius:16px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:24px 20px; text-align:center; margin-bottom:16px;">
-      <div style="font-size:13px; color:#6B5A4C; font-weight:500; margin-bottom:6px;">Tu saldo a pagar</div>
-      <div style="font-weight:700; font-size:40px; color:#B3261E; font-variant-numeric:tabular-nums; letter-spacing:-0.02em; line-height:1.05;">${money(d.saldo)}</div>
-      <div style="display:inline-flex; align-items:center; gap:6px; margin-top:12px; background:#FBEAE8; color:#B3261E; padding:5px 12px; border-radius:999px; font-size:13px; font-weight:600;">
-        <span style="width:7px; height:7px; border-radius:50%; background:#B3261E;"></span> Pendiente de pago
+      <div style="font-size:13px; color:#6B5A4C; font-weight:500; margin-bottom:6px;">${card.label}</div>
+      <div style="font-weight:700; font-size:40px; color:${card.valColor}; font-variant-numeric:tabular-nums; letter-spacing:-0.02em; line-height:1.05;">${card.val}</div>
+      <div style="display:inline-flex; align-items:center; gap:6px; margin-top:12px; background:${card.badgeBg}; color:${card.badgeFg}; padding:5px 12px; border-radius:999px; font-size:13px; font-weight:600;">
+        <span style="width:7px; height:7px; border-radius:50%; background:${card.badgeFg};"></span> ${card.badgeText}
       </div>
-      <div style="font-size:12px; color:#6B5A4C; margin-top:12px;">Total del mes ${money(d.totalMes)} · pagaste ${money(d.pagosTotal)}</div>
+      <div style="font-size:12px; color:${card.noteColor}; margin-top:12px; line-height:1.4;">${card.note}</div>
     </div>
 
     <div style="background:#FFFFFF; border-radius:16px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
@@ -141,7 +230,7 @@ Genova.views = (function () {
       </button>
       <div style="max-height:${detMax}; overflow:hidden; transition:max-height .28s ease;">
         <div style="padding:4px 16px 16px;">
-          ${halfRow('Venta del mes', money(d.venta), money(d.ventaMitad))}
+          ${sinVenta ? ventaSinCargar() : halfRow('Venta del mes', money(d.venta), money(d.ventaMitad))}
           ${halfRow('Productos anexos', money(d.anexosTotal), money(d.anexosMitad))}
           <div style="display:flex; justify-content:space-between; align-items:center; padding:12px 14px; margin-bottom:10px;">
             <span style="font-size:14px;">Saldo mes anterior</span>
@@ -150,23 +239,20 @@ Genova.views = (function () {
           <div style="background:linear-gradient(180deg,#FBF4E4,#F7ECD3); border:1px solid #EAD9A9; border-radius:12px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
             <div style="display:flex; flex-direction:column; line-height:1.2;">
               <span style="font-family:'Playfair Display',serif; font-size:15px; font-weight:700;">Total del mes</span>
-              <span style="font-size:11px; color:#8A6B2E; font-weight:500;">Las dos mitades + saldo anterior</span>
+              <span style="font-size:11px; color:#8A6B2E; font-weight:500;">${sinVenta ? 'Se calcula al cargar la venta del mes' : 'Las dos mitades + saldo anterior'}</span>
             </div>
-            <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums;">${money(d.totalMes)}</span>
+            <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; ${sinVenta ? 'color:#C8B7A6;' : ''}">${sinVenta ? '—' : money(d.totalMes)}</span>
           </div>
           <div style="display:flex; justify-content:space-between; align-items:center; padding:14px; margin-top:2px;">
             <span style="font-size:14px; color:#2E7D4F; font-weight:500;">Pagos del mes</span>
             <span style="font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; color:#2E7D4F;">${money(-d.pagosTotal)}</span>
           </div>
-          <div style="background:#FBEAE8; border-radius:12px; padding:14px 16px; display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-family:'Playfair Display',serif; font-size:16px; font-weight:700; color:#B3261E;">Saldo a pagar</span>
-            <span style="font-size:20px; font-weight:700; font-variant-numeric:tabular-nums; color:#B3261E;">${money(d.saldo)}</span>
-          </div>
+          ${saldoBanda}
         </div>
       </div>
     </div>
 
-    <button data-action="ftab" data-tab="pagos" style="width:100%; margin-top:16px; background:#C8102E; color:#fff; border:none; border-radius:8px; padding:15px; font-size:15px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; box-shadow:0 2px 8px rgba(43,27,18,0.08);">Registrar un pago</button>`
+    <button data-action="ftab" data-tab="pagos" style="width:100%; margin-top:16px; ${ctaStyle} border-radius:8px; padding:15px; font-size:15px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; box-shadow:0 2px 8px rgba(43,27,18,0.08);">Registrar un pago</button>`
   }
 
   function franAnexos(d, rows) {
@@ -231,7 +317,7 @@ Genova.views = (function () {
         <span style="font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; color:#B3261E;">${money(d.saldo)}</span>
       </div>
     </div>
-    <button style="width:100%; margin-bottom:8px; background:#C8102E; color:#fff; border:none; border-radius:8px; padding:15px; font-size:15px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+    <button data-action="open-modal" data-modal="pago-fran" style="width:100%; margin-bottom:8px; background:#C8102E; color:#fff; border:none; border-radius:8px; padding:15px; font-size:15px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
       ${icon('plus', 18, 2.4)} Registrar un pago
     </button>
     <div style="display:flex; align-items:center; gap:8px; background:#FBF3E2; border:1px solid #EAD9A9; border-radius:8px; padding:10px 12px; margin-bottom:16px;">
@@ -329,8 +415,8 @@ Genova.views = (function () {
           <div style="font-size:12px; color:#6B5A4C; margin:2px 0 12px;">Cargala para calcular la mitad que va a la cuenta.</div>
           <div style="display:flex; align-items:center; border:1.5px solid #C8102E; border-radius:8px; overflow:hidden;">
             <span style="padding:0 8px 0 14px; font-size:20px; font-weight:600; color:#6B5A4C;">$</span>
-            <input value="${f.plain(d.venta)}" readonly style="flex:1 1 auto; border:none; outline:none; padding:13px 14px 13px 0; font-size:20px; font-weight:700; font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; background:transparent;">
-            <button style="margin:6px; background:#C8102E; color:#fff; border:none; border-radius:6px; padding:9px 18px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Guardar</button>
+            <input id="gv-venta" value="${f.plain(d.venta)}" inputmode="numeric" style="flex:1 1 auto; border:none; outline:none; padding:13px 14px 13px 0; font-size:20px; font-weight:700; font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; background:transparent;">
+            <button data-action="save-venta" style="margin:6px; background:#C8102E; color:#fff; border:none; border-radius:6px; padding:9px 18px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Guardar</button>
           </div>
           <div style="font-size:12px; color:#6B5A4C; margin-top:10px;">Última carga: hoy, 09:41 · Roberto G.</div>
         </div>
@@ -365,7 +451,7 @@ Genova.views = (function () {
     var cols = '120px 1fr 130px 140px 140px'
     var body = rows.map(function (r) {
       return `<div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:14px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
-        <span style="font-size:14px; font-variant-numeric:tabular-nums;">${f.ddmm(r.fecha)}</span>
+        <span style="font-size:14px; font-variant-numeric:tabular-nums;">${f.dmy(r.fecha)}</span>
         <span style="font-size:14px; font-weight:600;">${r.producto}</span>
         <span style="font-size:14px; text-align:right; color:#6B5A4C;">${r.cantidad} ${f.unidadAbbr(r.unidad)}</span>
         <span style="font-size:14px; text-align:right; font-variant-numeric:tabular-nums;">${money(r.precioUnit)}</span>
@@ -376,7 +462,7 @@ Genova.views = (function () {
     return `
     <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:22px;">
       <div><h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Productos anexos — ${d.sucursal}</h1><div style="font-size:13px; color:#6B5A4C; margin-top:6px;">Mercadería que la sucursal compra a la matriz durante el mes.</div></div>
-      <button style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Cargar producto</button>
+      <button data-action="open-modal" data-modal="anexo" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Cargar producto</button>
     </div>
     <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
       <div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:13px 20px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
@@ -401,12 +487,12 @@ Genova.views = (function () {
       var b = badgePago(r.estado)
       var accion = r.estado === 'pending'
         ? `<div style="display:flex; gap:8px; justify-content:flex-end;">
-            <button style="background:#2E7D4F; color:#fff; border:none; border-radius:6px; padding:7px 14px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Verificar</button>
-            <button style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; border-radius:6px; padding:7px 14px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Rechazar</button>
+            <button data-action="verify-pago" data-id="${r._row}" style="background:#2E7D4F; color:#fff; border:none; border-radius:6px; padding:7px 14px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Verificar</button>
+            <button data-action="reject-pago" data-id="${r._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; border-radius:6px; padding:7px 14px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Rechazar</button>
           </div>`
         : `<span style="font-size:13px; color:#8A7A6C;">Confirmado</span>`
       return `<div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:15px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
-        <span style="font-size:14px; font-variant-numeric:tabular-nums;">${f.ddmm(r.fecha)}</span>
+        <span style="font-size:14px; font-variant-numeric:tabular-nums;">${f.dmy(r.fecha)}</span>
         <span style="font-size:14px; font-weight:600;">${r.concepto}</span>
         <span style="font-size:15px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(r.monto)}</span>
         <span><span style="display:inline-flex; align-items:center; gap:6px; background:${b.bg}; color:${b.fg}; font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;"><span style="width:6px; height:6px; border-radius:50%; background:${b.fg};"></span>${b.label}</span></span>
@@ -417,7 +503,7 @@ Genova.views = (function () {
     return `
     <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:22px;">
       <div><h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Pagos — ${d.sucursal}</h1><div style="font-size:13px; color:#6B5A4C; margin-top:6px;">Verificá los pagos cargados por el franquiciado o registrá uno.</div></div>
-      <button style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Registrar pago</button>
+      <button data-action="open-modal" data-modal="pago" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Registrar pago</button>
     </div>
     <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:22px;">
       <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:18px 22px;"><div style="${statLabel}">Pagos verificados</div><div style="font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; color:#2E7D4F; margin-top:6px;">${money(d.pagosVerificados)}</div></div>
@@ -456,14 +542,14 @@ Genova.views = (function () {
       <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
         <div style="display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid #F0EAE0;">
           <div><div style="font-family:'Playfair Display',serif; font-weight:600; font-size:17px;">Franquiciados</div><div style="font-size:12px; color:#6B5A4C; margin-top:2px;">Un acceso por sucursal.</div></div>
-          <button style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Alta</button>
+          <button data-action="open-modal" data-modal="usuario" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Alta</button>
         </div>
         ${lista}
       </div>
       <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
         <div style="display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid #F0EAE0;">
           <div><div style="font-family:'Playfair Display',serif; font-weight:600; font-size:17px;">Catálogo de productos anexos</div><div style="font-size:12px; color:#6B5A4C; margin-top:2px;">Precio vigente que se aplica al cargar anexos.</div></div>
-          <button style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Nuevo producto</button>
+          <button data-action="open-modal" data-modal="producto" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Nuevo producto</button>
         </div>
         <div style="display:grid; grid-template-columns:1fr 120px 140px; gap:12px; padding:12px 22px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
           ${th('Producto')}${th('Unidad')}${th('Precio vigente', true)}
@@ -473,5 +559,83 @@ Genova.views = (function () {
     </div>`
   }
 
-  return { login: login, franchisee: franchisee, admin: admin }
+  // ============================ MODALES (admin) ============================
+  var inputBase = 'width:100%; box-sizing:border-box; border:1px solid #E5DDD2; border-radius:8px; padding:11px 13px; font-size:14px; font-family:\'Inter\',sans-serif; background:#fff; outline:none;'
+
+  function campo(label, inner) {
+    return `<div style="margin-bottom:14px;"><label style="display:block; font-size:13px; font-weight:600; margin-bottom:6px;">${label}</label>${inner}</div>`
+  }
+
+  function overlay(titulo, saveAction, inner) {
+    return `
+    <div style="position:fixed; inset:0; background:rgba(43,27,18,0.45); display:flex; align-items:center; justify-content:center; z-index:100;">
+      <div style="width:440px; max-width:92vw; background:#FAF6F0; border-radius:16px; box-shadow:0 24px 64px rgba(43,27,18,0.4); padding:24px 26px; font-family:'Inter',sans-serif;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+          <h2 style="font-family:'Playfair Display',serif; font-weight:700; font-size:20px;">${titulo}</h2>
+          <button data-action="close-modal" style="background:none; border:none; font-size:20px; color:#6B5A4C; cursor:pointer; line-height:1;">✕</button>
+        </div>
+        ${inner}
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:22px;">
+          <button data-action="close-modal" style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; border-radius:8px; padding:10px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Cancelar</button>
+          <button data-action="${saveAction}" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:10px 20px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Guardar</button>
+        </div>
+      </div>
+    </div>`
+  }
+
+  function adminModal(state, data) {
+    if (!state.modal) return ''
+    var hoy = new Date()
+    var hoyDDMM = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2)
+    var fechaCampo = campo('Fecha (dd/mm)', `<input id="gv-fecha" value="${hoyDDMM}" placeholder="dd/mm" inputmode="numeric" style="${inputBase}">`)
+
+    if (state.modal === 'pago') {
+      return overlay('Registrar pago', 'save-pago',
+        campo('Concepto', `<input id="gv-pago-concepto" placeholder="Ej: Transferencia" style="${inputBase}">`) +
+        campo('Monto', `<input id="gv-pago-monto" inputmode="numeric" placeholder="0" style="${inputBase}">`) +
+        fechaCampo)
+    }
+
+    if (state.modal === 'anexo') {
+      var opts = (data.catalogo || []).map(function (c) {
+        return `<option value="${c.producto}" data-unidad="${c.unidad}" data-precio="${c.precio}">${c.producto} · ${money(c.precio)}</option>`
+      }).join('')
+      return overlay('Cargar producto', 'save-anexo',
+        campo('Producto', `<select id="gv-anexo-producto" style="${inputBase}">${opts}</select>`) +
+        campo('Cantidad', `<input id="gv-anexo-cantidad" inputmode="numeric" placeholder="0" style="${inputBase}">`) +
+        fechaCampo)
+    }
+
+    if (state.modal === 'usuario') {
+      var sucs = (data.sucursales || []).map(function (s) {
+        return `<option value="${s.nombre}">${s.nombre}</option>`
+      }).join('')
+      return overlay('Alta de franquiciado', 'save-usuario',
+        campo('Nombre', `<input id="gv-user-nombre" style="${inputBase}">`) +
+        campo('Iniciales', `<input id="gv-user-iniciales" maxlength="3" placeholder="Ej: MF" style="${inputBase}">`) +
+        campo('Sucursal', `<select id="gv-user-sucursal" style="${inputBase}">${sucs}</select>`) +
+        campo('Email', `<input id="gv-user-email" type="email" style="${inputBase}">`))
+    }
+
+    if (state.modal === 'producto') {
+      return overlay('Nuevo producto', 'save-producto',
+        campo('Producto', `<input id="gv-prod-nombre" style="${inputBase}">`) +
+        campo('Unidad', `<input id="gv-prod-unidad" placeholder="Ej: docena, kg, plancha" style="${inputBase}">`) +
+        campo('Precio', `<input id="gv-prod-precio" inputmode="numeric" placeholder="0" style="${inputBase}">`))
+    }
+
+    return ''
+  }
+
+  function franModal(state) {
+    if (state.modal !== 'pago-fran') return ''
+    var hoy = new Date()
+    var hoyDDMM = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2)
+    return overlay('Registrar un pago', 'save-pago-fran',
+      campo('Concepto', `<input id="gv-fpago-concepto" placeholder="Ej: Transferencia" style="${inputBase}">`) +
+      campo('Monto', `<input id="gv-fpago-monto" inputmode="numeric" placeholder="0" style="${inputBase}">`) +
+      campo('Fecha (dd/mm)', `<input id="gv-fecha" value="${hoyDDMM}" placeholder="dd/mm" inputmode="numeric" style="${inputBase}">`))
+  }
+
+  return { login: login, booting: booting, denied: denied, franchisee: franchisee, admin: admin, adminModal: adminModal, franModal: franModal }
 })()

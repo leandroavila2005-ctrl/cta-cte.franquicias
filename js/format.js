@@ -29,6 +29,11 @@ Genova.format = (function () {
     var p = fecha.split('-')
     return p[2] + '/' + p[1]
   }
+  // '2026-07-28' -> "28/07/2026"
+  function dmy(fecha) {
+    var p = fecha.split('-')
+    return p[2] + '/' + p[1] + '/' + p[0]
+  }
   // '2026-07-28' -> "jul"
   function mesAbbrDeFecha(fecha) {
     var p = fecha.split('-')
@@ -58,6 +63,7 @@ Genova.format = (function () {
     plain: plain,
     dayOf: dayOf,
     ddmm: ddmm,
+    dmy: dmy,
     mesAbbrDeFecha: mesAbbrDeFecha,
     mesLargo: mesLargo,
     unidadAbbr: unidadAbbr,
