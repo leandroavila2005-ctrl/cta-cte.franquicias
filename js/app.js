@@ -18,6 +18,7 @@ window.Genova = window.Genova || {}
     sucursalActual: '', // nombre de la sucursal activa (admin) — para las escrituras
     user: null, // { email, rol, sucursal } — usuario autenticado (modo real)
     deniedEmail: '', // email rechazado (pantalla de acceso denegado)
+    deniedError: '', // mensaje de error crudo del backend (diagnóstico)
   }
 
   var root = document.getElementById('app')
@@ -33,42 +34,28 @@ window.Genova = window.Genova || {}
       return
     }
     if (state.view === 'denied') {
-      root.innerHTML = views.denied(state.deniedEmail)
+      root.innerHTML = views.denied(state.deniedEmail, state.deniedError)
       return
     }
 
     if (state.view === 'fran') {
       var sucursalF = (state.user && state.user.sucursal) || 'City Bell' // su sucursal (o City Bell en demo)
-      var mesF = cfg.MES_ACTUAL
-      var resF = await Promise.all([
-        api.dashboard(sucursalF, mesF),
-        api.list('anexos', { sucursal: sucursalF, mes: mesF }),
-        api.list('pagos', { sucursal: sucursalF, mes: mesF }),
-      ])
-      root.innerHTML = views.franchisee(state, { dash: resF[0], anexos: resF[1], pagos: resF[2] }) + views.franModal(state)
+      var resF = await api.panelFran(sucursalF, cfg.MES_ACTUAL)
+      root.innerHTML = views.franchisee(state, { dash: resF.dash, anexos: resF.anexos, pagos: resF.pagos }) + views.franModal(state)
       return
     }
 
-    // admin
-    var sucursales = await api.list('sucursales', {})
-    var sucursal = sucursales[state.branch].nombre
-    state.sucursalActual = sucursal
-    var mes = cfg.MES_ACTUAL
-    var res = await Promise.all([
-      api.dashboard(sucursal, mes),
-      api.list('anexos', { sucursal: sucursal, mes: mes }),
-      api.list('pagos', { sucursal: sucursal, mes: mes }),
-      api.list('usuarios', {}),
-      api.list('catalogo', {}),
-    ])
+    // admin — una sola llamada trae todo lo de la pantalla
+    var res = await api.panelAdmin(state.branch, cfg.MES_ACTUAL)
+    state.sucursalActual = res.sucursalActual
     root.innerHTML = views.admin(state, {
-      sucursales: sucursales,
-      dash: res[0],
-      anexos: res[1],
-      pagos: res[2],
-      usuarios: res[3],
-      catalogo: res[4],
-    }) + views.adminModal(state, { sucursales: sucursales, catalogo: res[4] })
+      sucursales: res.sucursales,
+      dash: res.dash,
+      anexos: res.anexos,
+      pagos: res.pagos,
+      usuarios: res.usuarios,
+      catalogo: res.catalogo,
+    }) + views.adminModal(state, { sucursales: res.sucursales, catalogo: res.catalogo })
   }
 
   // --- Helpers de formularios ---
@@ -207,14 +194,16 @@ window.Genova = window.Genova || {}
     api.me().then(function (me) {
       if (!me || me.error) {
         state.deniedEmail = (Genova.auth.profile() || {}).email || ''
+        state.deniedError = (me && me.error) || 'respuesta vacía del backend'
         state.view = 'denied'; render(); return
       }
       state.user = me
       state.view = me.rol === 'admin' ? 'admin' : 'fran'
       state.aTab = 'resumen'; state.fTab = 'resumen'; state.branch = 0
       render()
-    }).catch(function () {
+    }).catch(function (e) {
       state.deniedEmail = (Genova.auth.profile() || {}).email || ''
+      state.deniedError = 'fetch falló: ' + (e && e.message ? e.message : e)
       state.view = 'denied'; render()
     })
   }

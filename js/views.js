@@ -77,11 +77,13 @@ Genova.views = (function () {
     return cardShell(`<div style="font-size:14px; color:#6B5A4C;">Verificando acceso…</div>`)
   }
 
-  function denied(email) {
+  function denied(email, error) {
+    var diag = error ? `<div style="font-size:11px; color:#8A7A6C; background:#F5EFE6; border:1px dashed #D9CBBA; border-radius:8px; padding:8px 10px; margin-bottom:16px; word-break:break-word; font-family:monospace;">${error}</div>` : ''
     return cardShell(`
       <div style="width:52px; height:52px; margin:0 auto 14px; border-radius:50%; background:#FBEAE8; color:#B3261E; display:flex; align-items:center; justify-content:center;">${icon('info', 26, 2, '#B3261E')}</div>
       <h2 style="font-family:'Playfair Display',serif; font-weight:700; font-size:20px;">Acceso denegado</h2>
-      <p style="font-size:13px; color:#6B5A4C; line-height:1.45; margin:10px 0 20px;">La cuenta <b>${email || ''}</b> no está autorizada. Pedile al administrador que te dé de alta en Configuración.</p>
+      <p style="font-size:13px; color:#6B5A4C; line-height:1.45; margin:10px 0 14px;">La cuenta <b>${email || ''}</b> no está autorizada. Pedile al administrador que te dé de alta en Configuración.</p>
+      ${diag}
       <button data-action="logout" style="width:100%; background:#fff; color:#C8102E; border:1.5px solid #E7C9C6; border-radius:12px; padding:14px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Probar con otra cuenta</button>`)
   }
 

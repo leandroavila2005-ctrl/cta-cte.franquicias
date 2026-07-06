@@ -67,7 +67,29 @@ Genova.api = (function () {
 
     function me() { return Promise.resolve({ email: 'demo', rol: 'admin', sucursal: '' }) }
 
-    return { me: me, list: list, dashboard: dashboard, create: create, update: update, remove: remove }
+    function panelAdmin(branch, mes) {
+      var sucursales = (db.sucursales || []).slice()
+      var idx = Number(branch) || 0
+      var sucursal = (sucursales[idx] || sucursales[0] || {}).nombre || ''
+      return Promise.all([
+        dashboard(sucursal, mes),
+        list('anexos', { sucursal: sucursal, mes: mes }),
+        list('pagos', { sucursal: sucursal, mes: mes }),
+        list('usuarios', {}),
+        list('catalogo', {}),
+      ]).then(function (r) {
+        return { sucursales: sucursales, sucursalActual: sucursal, dash: r[0], anexos: r[1], pagos: r[2], usuarios: r[3], catalogo: r[4] }
+      })
+    }
+    function panelFran(sucursal, mes) {
+      return Promise.all([
+        dashboard(sucursal, mes),
+        list('anexos', { sucursal: sucursal, mes: mes }),
+        list('pagos', { sucursal: sucursal, mes: mes }),
+      ]).then(function (r) { return { dash: r[0], anexos: r[1], pagos: r[2] } })
+    }
+
+    return { me: me, panelAdmin: panelAdmin, panelFran: panelFran, list: list, dashboard: dashboard, create: create, update: update, remove: remove }
   }
 
   // ============================ MODO REAL ============================
@@ -83,7 +105,7 @@ Genova.api = (function () {
         .join('&')
     }
     function get(params) {
-      return fetch(cfg.API_URL + '?' + qs(Object.assign({ token: tok() }, params))).then(function (r) { return r.json() })
+      return fetch(cfg.API_URL + '?' + qs(Object.assign({ token: tok(), _: Date.now() }, params))).then(function (r) { return r.json() })
     }
     function post(body) {
       return fetch(cfg.API_URL, {
@@ -98,20 +120,28 @@ Genova.api = (function () {
       me: function () {
         return get({ action: 'me' })
       },
+      panelAdmin: function (branch, mes) {
+        return get({ action: 'panelAdmin', branch: branch, mes: mes })
+      },
+      panelFran: function (sucursal, mes) {
+        return get({ action: 'panelFran', sucursal: sucursal, mes: mes })
+      },
       list: function (entidad, filtros) {
         return get(Object.assign({ action: 'list', entity: entidad }, filtros || []))
       },
       dashboard: function (sucursal, mes) {
         return get({ action: 'dashboard', sucursal: sucursal, mes: mes })
       },
+      // Escrituras por GET: el POST cross-origin con Apps Script termina en una
+      // redirección que el navegador recibe como HTML y no devuelve JSON confiable.
       create: function (entidad, datos) {
-        return post({ action: 'create', entity: entidad, data: datos })
+        return get({ action: 'create', entity: entidad, data: JSON.stringify(datos) })
       },
       update: function (entidad, id, datos) {
-        return post({ action: 'update', entity: entidad, id: id, data: datos })
+        return get({ action: 'update', entity: entidad, id: id, data: JSON.stringify(datos) })
       },
       remove: function (entidad, id) {
-        return post({ action: 'remove', entity: entidad, id: id })
+        return get({ action: 'remove', entity: entidad, id: id })
       },
     }
   }
