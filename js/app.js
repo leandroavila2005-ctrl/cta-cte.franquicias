@@ -19,6 +19,7 @@ window.Genova = window.Genova || {}
     user: null, // { email, rol, sucursal } — usuario autenticado (modo real)
     deniedEmail: '', // email rechazado (pantalla de acceso denegado)
     deniedError: '', // mensaje de error crudo del backend (diagnóstico)
+    mes: cfg.MES_ACTUAL, // mes que se está viendo (navegable hacia atrás)
   }
 
   var root = document.getElementById('app')
@@ -40,13 +41,13 @@ window.Genova = window.Genova || {}
 
     if (state.view === 'fran') {
       var sucursalF = (state.user && state.user.sucursal) || 'City Bell' // su sucursal (o City Bell en demo)
-      var resF = await api.panelFran(sucursalF, cfg.MES_ACTUAL)
+      var resF = await api.panelFran(sucursalF, state.mes)
       root.innerHTML = views.franchisee(state, { dash: resF.dash, anexos: resF.anexos, pagos: resF.pagos }) + views.franModal(state)
       return
     }
 
     // admin — una sola llamada trae todo lo de la pantalla
-    var res = await api.panelAdmin(state.branch, cfg.MES_ACTUAL)
+    var res = await api.panelAdmin(state.branch, state.mes)
     state.sucursalActual = res.sucursalActual
     root.innerHTML = views.admin(state, {
       sucursales: res.sucursales,
@@ -79,6 +80,12 @@ window.Genova = window.Genova || {}
     var y = p[2] || cfg.MES_ACTUAL.split('-')[0]
     return y + '-' + m + '-' + d
   }
+  // 'AAAA-MM' +/- n meses -> 'AAAA-MM'
+  function correrMes(mes, delta) {
+    var p = mes.split('-')
+    var d = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1 + delta, 1)
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2)
+  }
 
   // --- Navegación por delegación de eventos (un solo listener) ---
   var actions = {
@@ -96,13 +103,15 @@ window.Genova = window.Genova || {}
     'atab': function (el) { state.aTab = el.getAttribute('data-tab') },
     'branch': function (el) { state.branch = parseInt(el.getAttribute('data-index'), 10) },
     'toggle-det': function () { state.det = !state.det },
+    'prev-month': function () { state.mes = correrMes(state.mes, -1) },
+    'next-month': function () { if (state.mes < cfg.MES_ACTUAL) state.mes = correrMes(state.mes, 1) },
 
     'open-modal': function (el) { state.modal = el.getAttribute('data-modal') },
     'close-modal': function () { state.modal = null },
 
     'save-venta': function () {
       var monto = num(val('gv-venta'))
-      var suc = state.sucursalActual, mes = cfg.MES_ACTUAL
+      var suc = state.sucursalActual, mes = state.mes
       return api.list('ventas', { sucursal: suc, mes: mes }).then(function (rows) {
         if (rows && rows.length) return api.update('ventas', rows[0]._row, { monto: monto })
         return api.create('ventas', { sucursal: suc, mes: mes, monto: monto, fecha: isoFecha(''), cargadoPor: 'Admin' })
@@ -114,9 +123,10 @@ window.Genova = window.Genova || {}
       var concepto = val('gv-pago-concepto')
       if (!concepto || !monto) return false
       state.modal = null
+      var fecha = isoFecha(val('gv-fecha'))
       return api.create('pagos', {
-        sucursal: state.sucursalActual, mes: cfg.MES_ACTUAL,
-        concepto: concepto, monto: monto, estado: 'ok', fecha: isoFecha(val('gv-fecha')),
+        sucursal: state.sucursalActual, mes: fecha.slice(0, 7),
+        concepto: concepto, monto: monto, estado: 'ok', fecha: fecha,
       })
     },
 
@@ -127,8 +137,9 @@ window.Genova = window.Genova || {}
       var cantidad = num(val('gv-anexo-cantidad'))
       if (!cantidad) return false
       state.modal = null
+      var fecha = isoFecha(val('gv-fecha'))
       return api.create('anexos', {
-        sucursal: state.sucursalActual, mes: cfg.MES_ACTUAL, fecha: isoFecha(val('gv-fecha')),
+        sucursal: state.sucursalActual, mes: fecha.slice(0, 7), fecha: fecha,
         producto: sel.value, cantidad: cantidad,
         unidad: opt.getAttribute('data-unidad'), precioUnit: num(opt.getAttribute('data-precio')),
       })
@@ -158,9 +169,10 @@ window.Genova = window.Genova || {}
       var concepto = val('gv-fpago-concepto')
       if (!concepto || !monto) return false
       state.modal = null
+      var fecha = isoFecha(val('gv-fecha'))
       return api.create('pagos', {
-        sucursal: 'City Bell', mes: cfg.MES_ACTUAL,
-        concepto: concepto, monto: monto, estado: 'pending', fecha: isoFecha(val('gv-fecha')),
+        sucursal: 'City Bell', mes: fecha.slice(0, 7),
+        concepto: concepto, monto: monto, estado: 'pending', fecha: fecha,
       })
     },
 
@@ -173,6 +185,20 @@ window.Genova = window.Genova || {}
     },
   }
 
+  // Overlay de "trabajando" (el backend Apps Script tarda ~2-4s por request).
+  function loading(on) {
+    var el = document.getElementById('gv-loading')
+    if (on && !el) {
+      el = document.createElement('div')
+      el.id = 'gv-loading'
+      el.style.cssText = 'position:fixed; inset:0; background:rgba(250,246,240,0.55); display:flex; align-items:center; justify-content:center; z-index:200;'
+      el.innerHTML = '<div style="background:#fff; padding:14px 24px; border-radius:12px; box-shadow:0 8px 24px rgba(43,27,18,0.18); font-family:\'Inter\',sans-serif; font-size:14px; font-weight:600; color:#6B5A4C;">Cargando…</div>'
+      document.body.appendChild(el)
+    } else if (!on && el) {
+      el.parentNode.removeChild(el)
+    }
+  }
+
   root.addEventListener('click', function (e) {
     var el = e.target.closest('[data-action]')
     if (!el) return
@@ -180,12 +206,13 @@ window.Genova = window.Genova || {}
     if (!fn) return
     var r = fn(el)
     if (r === false) return
+    loading(true)
     Promise.resolve(r).then(function (res) {
       if (res && res.error) window.alert('El backend rechazó la operación: ' + res.error)
       return render()
     }).catch(function (e) {
       window.alert('Error de conexión con la planilla: ' + (e && e.message ? e.message : e))
-    })
+    }).then(function () { loading(false) })
   })
 
   // --- Arranque / autenticación ---

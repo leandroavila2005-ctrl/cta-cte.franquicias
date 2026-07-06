@@ -117,12 +117,12 @@ Genova.views = (function () {
 
       <div class="gv-scroll" style="flex:1 1 auto; overflow-y:auto; padding:16px 16px 96px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-          <button style="width:36px; height:36px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:#6B5A4C; font-size:18px; cursor:pointer;">‹</button>
+          <button data-action="prev-month" style="width:36px; height:36px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:#6B5A4C; font-size:18px; cursor:pointer;">‹</button>
           <div style="text-align:center; line-height:1.2;">
             <div style="font-family:'Playfair Display',serif; font-weight:700; font-size:19px;">${f.mesLargo(d.mes)}</div>
-            <div style="font-size:11px; color:#C77700; font-weight:600; letter-spacing:.02em;">MES EN CURSO</div>
+            <div style="font-size:11px; color:${d.mes === Genova.config.MES_ACTUAL ? '#C77700' : '#8A7A6C'}; font-weight:600; letter-spacing:.02em;">${d.mes === Genova.config.MES_ACTUAL ? 'MES EN CURSO' : 'HISTÓRICO'}</div>
           </div>
-          <button style="width:36px; height:36px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:#C8B7A6; font-size:18px; cursor:not-allowed;">›</button>
+          <button ${d.mes === Genova.config.MES_ACTUAL ? '' : 'data-action="next-month"'} style="width:36px; height:36px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:${d.mes === Genova.config.MES_ACTUAL ? '#C8B7A6' : '#6B5A4C'}; font-size:18px; cursor:${d.mes === Genova.config.MES_ACTUAL ? 'not-allowed' : 'pointer'};">›</button>
         </div>
         ${body}
       </div>
@@ -368,9 +368,9 @@ Genova.views = (function () {
         <div style="font-size:10px; font-weight:700; letter-spacing:.08em; color:#A89684; text-transform:uppercase; padding:22px 8px 6px;">Sucursales</div>
         ${branches}
         <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px 8px; border-top:1px solid #F0EAE0;">
-          <div style="width:32px; height:32px; border-radius:50%; background:#2B1B12; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;">RG</div>
+          <div style="width:32px; height:32px; border-radius:50%; background:#2B1B12; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;">${(state.user && state.user.iniciales) || '··'}</div>
           <div style="line-height:1.2; flex:1 1 auto;">
-            <div style="font-size:13px; font-weight:600;">Roberto Genova</div>
+            <div style="font-size:13px; font-weight:600;">${(state.user && state.user.nombre) || 'Administrador'}</div>
             <div style="font-size:11px; color:#6B5A4C;">Franquiciante</div>
           </div>
           <button data-action="logout" style="background:none; border:none; color:#C8102E; font-size:11px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Salir</button>
@@ -380,14 +380,15 @@ Genova.views = (function () {
     </div>`
   }
 
-  function monthNav() {
+  function monthNav(mes) {
+    var esActual = mes === Genova.config.MES_ACTUAL
     return `<div style="display:flex; align-items:center; gap:10px;">
-      <button style="width:38px; height:38px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:#6B5A4C; font-size:18px; cursor:pointer;">‹</button>
-      <div style="text-align:center; min-width:120px;">
-        <div style="font-family:'Playfair Display',serif; font-weight:700; font-size:16px;">Julio 2026</div>
-        <div style="font-size:10px; color:#C77700; font-weight:700;">MES EN CURSO</div>
+      <button data-action="prev-month" style="width:38px; height:38px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:#6B5A4C; font-size:18px; cursor:pointer;">‹</button>
+      <div style="text-align:center; min-width:130px;">
+        <div style="font-family:'Playfair Display',serif; font-weight:700; font-size:16px;">${f.mesLargo(mes)}</div>
+        <div style="font-size:10px; color:${esActual ? '#C77700' : '#8A7A6C'}; font-weight:700;">${esActual ? 'MES EN CURSO' : 'HISTÓRICO'}</div>
       </div>
-      <button style="width:38px; height:38px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:#C8B7A6; font-size:18px; cursor:not-allowed;">›</button>
+      <button ${esActual ? '' : 'data-action="next-month"'} style="width:38px; height:38px; border-radius:8px; border:1px solid #E5DDD2; background:#fff; color:${esActual ? '#C8B7A6' : '#6B5A4C'}; font-size:18px; cursor:${esActual ? 'not-allowed' : 'pointer'};">›</button>
     </div>`
   }
 
@@ -408,7 +409,7 @@ Genova.views = (function () {
         </div>
         <div style="font-size:13px; color:#6B5A4C; margin-top:6px;">Cuenta corriente mensual del franquiciado.</div>
       </div>
-      ${monthNav()}
+      ${monthNav(d.mes)}
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start;">
       <div style="display:flex; flex-direction:column; gap:20px;">
