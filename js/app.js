@@ -139,6 +139,12 @@ window.Genova = window.Genova || {}
     'open-modal': function (el) { state.modal = el.getAttribute('data-modal') },
     'close-modal': function () { state.modal = null },
 
+    // Abrir/cerrar el menú lateral en mobile (toggle directo, sin re-render).
+    'toggle-nav': function () {
+      var adm = document.querySelector('.gv-admin')
+      if (adm) adm.classList.toggle('gv-nav-open')
+      return false
+    },
     // Colapsar/expandir una sección (toggle directo del DOM, sin re-render).
     'collap': function (el) {
       var body = document.getElementById(el.getAttribute('data-target'))

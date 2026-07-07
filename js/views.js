@@ -358,9 +358,16 @@ Genova.views = (function () {
       </button>`
     }).join('')
 
+    var titulos = { resumen: 'Resumen', anexos: 'Productos anexos', pagos: 'Pagos', config: 'Configuración' }
+    var mobileBar = `<div class="gv-mobilebar" style="align-items:center; gap:12px; padding:2px 2px 14px; margin-bottom:6px; border-bottom:1px solid #F0EAE0;">
+      <button data-action="toggle-nav" aria-label="Menú" style="background:#fff; border:1px solid #E5DDD2; border-radius:8px; width:42px; height:42px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#2B1B12; flex:0 0 auto;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
+      <span style="font-family:'Playfair Display',serif; font-weight:700; font-size:18px;">${titulos[state.aTab] || ''}</span>
+    </div>`
+
     return `
-    <div style="width:1440px; height:900px; background:#FAF6F0; border-radius:16px; box-shadow:0 30px 80px -12px rgba(43,27,18,0.38), 0 12px 28px rgba(43,27,18,0.20); overflow:hidden; display:flex;">
-      <div style="flex:0 0 248px; background:#FFFFFF; border-right:1px solid #E5DDD2; display:flex; flex-direction:column; padding:20px 16px;">
+    <div class="gv-admin" style="width:1440px; height:900px; background:#FAF6F0; border-radius:16px; box-shadow:0 30px 80px -12px rgba(43,27,18,0.38), 0 12px 28px rgba(43,27,18,0.20); overflow:hidden; display:flex;">
+      <div class="gv-backdrop" data-action="toggle-nav"></div>
+      <div class="gv-side" style="flex:0 0 248px; background:#FFFFFF; border-right:1px solid #E5DDD2; display:flex; flex-direction:column; padding:20px 16px;">
         <div style="display:flex; align-items:center; gap:10px; padding:4px 8px 20px;">
           <img src="assets/logo-g.png" alt="" style="width:40px; height:40px; object-fit:contain; flex:0 0 auto;">
           <div style="line-height:1.15;">
@@ -382,7 +389,7 @@ Genova.views = (function () {
           <button data-action="logout" style="background:none; border:none; color:#C8102E; font-size:11px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Salir</button>
         </div>
       </div>
-      <div class="gv-scroll" style="flex:1 1 auto; overflow-y:auto; padding:28px 36px;">${main}</div>
+      <div class="gv-main gv-scroll" style="flex:1 1 auto; overflow-y:auto; padding:28px 36px;">${mobileBar}${main}</div>
     </div>`
   }
 
@@ -422,9 +429,9 @@ Genova.views = (function () {
 
   function adminResumen(d, p) {
     return `
-    <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:24px;">
+    <div class="gv-head" style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:24px;">
       <div>
-        <div style="display:flex; align-items:center; gap:10px;">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
           <h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Resumen — ${d.sucursal}</h1>
           <span style="background:${p.statusBg}; color:${p.statusFg}; font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;">${p.statusLabel}</span>
         </div>
@@ -432,7 +439,7 @@ Genova.views = (function () {
       </div>
       ${monthNav(d.mes)}
     </div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start;">
+    <div class="gv-two-col" style="display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start;">
       <div style="display:flex; flex-direction:column; gap:20px;">
         <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:22px 24px;">
           <label style="font-size:13px; font-weight:600;">Venta total del mes</label>
@@ -474,23 +481,23 @@ Genova.views = (function () {
   function adminAnexos(d, rows) {
     var cols = '104px 1fr 100px 120px 120px 160px'
     var body = rows.map(function (r) {
-      return `<div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:14px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
-        <span style="font-size:14px; font-variant-numeric:tabular-nums;">${f.dmy(r.fecha)}</span>
-        <span style="font-size:14px; font-weight:600;">${r.producto}</span>
-        <span style="font-size:14px; text-align:right; color:#6B5A4C;">${r.cantidad} ${f.unidadAbbr(r.unidad)}</span>
-        <span style="font-size:14px; text-align:right; font-variant-numeric:tabular-nums;">${money(r.precioUnit)}</span>
-        <span style="font-size:14px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(r.subtotal)}</span>
-        <div style="display:flex; gap:8px; justify-content:flex-end;">${rowBtns('anexo', r)}</div>
+      return `<div class="gv-list-row" style="display:grid; grid-template-columns:${cols}; gap:14px; padding:14px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
+        <span class="gv-cell" data-label="Fecha" style="font-size:14px; font-variant-numeric:tabular-nums;">${f.dmy(r.fecha)}</span>
+        <span class="gv-cell" data-label="Producto" style="font-size:14px; font-weight:600;">${r.producto}</span>
+        <span class="gv-cell" data-label="Cantidad" style="font-size:14px; text-align:right; color:#6B5A4C;">${r.cantidad} ${f.unidadAbbr(r.unidad)}</span>
+        <span class="gv-cell" data-label="Precio" style="font-size:14px; text-align:right; font-variant-numeric:tabular-nums;">${money(r.precioUnit)}</span>
+        <span class="gv-cell" data-label="Subtotal" style="font-size:14px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(r.subtotal)}</span>
+        <div class="gv-cell gv-cell-actions" style="display:flex; gap:8px; justify-content:flex-end;">${rowBtns('anexo', r)}</div>
       </div>`
     }).join('')
 
     return `
-    <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:22px;">
+    <div class="gv-head" style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:22px;">
       <div><h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Productos anexos — ${d.sucursal}</h1><div style="font-size:13px; color:#6B5A4C; margin-top:6px;">Mercadería que la sucursal compra a la matriz durante el mes.</div></div>
       <button data-action="open-modal" data-modal="anexo" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Cargar producto</button>
     </div>
     <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
-      <div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:13px 20px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
+      <div class="gv-list-head" style="display:grid; grid-template-columns:${cols}; gap:14px; padding:13px 20px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
         ${th('Fecha')}${th('Producto')}${th('Cantidad', true)}${th('Precio', true)}${th('Subtotal', true)}${th('Acción', true)}
       </div>
       ${body}
@@ -514,27 +521,27 @@ Genova.views = (function () {
         ? `<button data-action="verify-pago" data-id="${r._row}" style="background:#2E7D4F; color:#fff; border:none; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Verificar</button>`
         : ''
       var accion = `<div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">${verificar}${rowBtns('pago', r)}</div>`
-      return `<div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:15px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
-        <span style="font-size:14px; font-variant-numeric:tabular-nums;">${f.dmy(r.fecha)}</span>
-        <span style="font-size:14px; font-weight:600;">${r.concepto}</span>
-        <span style="font-size:15px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(r.monto)}</span>
-        <span><span style="display:inline-flex; align-items:center; gap:6px; background:${b.bg}; color:${b.fg}; font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;"><span style="width:6px; height:6px; border-radius:50%; background:${b.fg};"></span>${b.label}</span></span>
-        <div style="text-align:right;">${accion}</div>
+      return `<div class="gv-list-row" style="display:grid; grid-template-columns:${cols}; gap:14px; padding:15px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
+        <span class="gv-cell" data-label="Fecha" style="font-size:14px; font-variant-numeric:tabular-nums;">${f.dmy(r.fecha)}</span>
+        <span class="gv-cell" data-label="Concepto" style="font-size:14px; font-weight:600;">${r.concepto}</span>
+        <span class="gv-cell" data-label="Monto" style="font-size:15px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(r.monto)}</span>
+        <span class="gv-cell" data-label="Estado"><span style="display:inline-flex; align-items:center; gap:6px; background:${b.bg}; color:${b.fg}; font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;"><span style="width:6px; height:6px; border-radius:50%; background:${b.fg};"></span>${b.label}</span></span>
+        <div class="gv-cell gv-cell-actions" style="text-align:right;">${accion}</div>
       </div>`
     }).join('')
 
     return `
-    <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:22px;">
+    <div class="gv-head" style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:22px;">
       <div><h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Pagos — ${d.sucursal}</h1><div style="font-size:13px; color:#6B5A4C; margin-top:6px;">Verificá los pagos cargados por el franquiciado o registrá uno.</div></div>
       <button data-action="open-modal" data-modal="pago" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Registrar pago</button>
     </div>
-    <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:22px;">
+    <div class="gv-two-col" style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:22px;">
       <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:18px 22px;"><div style="${statLabel}">Pagos verificados</div><div style="font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; color:#2E7D4F; margin-top:6px;">${money(d.pagosVerificados)}</div></div>
       <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:18px 22px; border-left:4px solid ${pendBorder};"><div style="${statLabel}">Por verificar</div><div style="font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; color:${pendColor}; margin-top:6px;">${money(d.pagosPorVerificar)}</div><div style="font-size:12px; color:#8A6B2E; margin-top:2px;">${pendText}</div></div>
       <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:18px 22px;"><div style="${statLabel}">Saldo a pagar</div><div style="font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; color:${p.accent}; margin-top:6px;">${p.saldoDisplay}</div></div>
     </div>
     <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
-      <div style="display:grid; grid-template-columns:${cols}; gap:14px; padding:13px 20px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
+      <div class="gv-list-head" style="display:grid; grid-template-columns:${cols}; gap:14px; padding:13px 20px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
         ${th('Fecha')}${th('Concepto')}${th('Monto', true)}${th('Estado')}${th('Acción', true)}
       </div>
       ${body}
@@ -561,11 +568,11 @@ Genova.views = (function () {
     var cuentas = (Array.isArray(alias) ? alias : []).map(function (c) {
       var dataAttrs = `data-id="${c._row}" data-concepto="${encodeURIComponent(c.concepto || '')}" data-cbu="${encodeURIComponent(c.aliasCbu || '')}" data-titular="${encodeURIComponent(c.titular || '')}"`
       var btn = 'border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:\'Inter\',sans-serif; cursor:pointer;'
-      return `<div style="display:grid; grid-template-columns:${cuentasCols}; gap:12px; padding:13px 22px; border-bottom:1px solid #F0EAE0; align-items:center;">
-        <span style="font-size:14px; font-weight:600;">${c.concepto || '—'}</span>
-        <span style="font-size:13px; color:#6B5A4C; word-break:break-all;">${c.aliasCbu || '—'}</span>
-        <span style="font-size:13px; color:#6B5A4C;">${c.titular || '—'}</span>
-        <div style="display:flex; gap:8px; justify-content:flex-end;">
+      return `<div class="gv-list-row" style="display:grid; grid-template-columns:${cuentasCols}; gap:12px; padding:13px 22px; border-bottom:1px solid #F0EAE0; align-items:center;">
+        <span class="gv-cell" data-label="Concepto" style="font-size:14px; font-weight:600;">${c.concepto || '—'}</span>
+        <span class="gv-cell" data-label="Alias / CBU" style="font-size:13px; color:#6B5A4C; word-break:break-all;">${c.aliasCbu || '—'}</span>
+        <span class="gv-cell" data-label="Titular" style="font-size:13px; color:#6B5A4C;">${c.titular || '—'}</span>
+        <div class="gv-cell gv-cell-actions" style="display:flex; gap:8px; justify-content:flex-end;">
           <button data-action="edit-cuenta" ${dataAttrs} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${btn}">Editar</button>
           <button data-action="del-cuenta" data-id="${c._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; ${btn}">Eliminar</button>
         </div>
@@ -575,7 +582,7 @@ Genova.views = (function () {
       <div style="padding:14px 22px;">
         <button data-action="open-modal" data-modal="cuenta" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:inline-flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Nueva cuenta</button>
       </div>
-      <div style="display:grid; grid-template-columns:${cuentasCols}; gap:12px; padding:12px 22px; background:#FAF6F0; border-top:1px solid #F0EAE0; border-bottom:1px solid #F0EAE0;">
+      <div class="gv-list-head" style="display:grid; grid-template-columns:${cuentasCols}; gap:12px; padding:12px 22px; background:#FAF6F0; border-top:1px solid #F0EAE0; border-bottom:1px solid #F0EAE0;">
         ${th('Concepto')}${th('Alias / CBU')}${th('Titular')}${th('Acción', true)}
       </div>
       ${cuentas || `<div style="padding:16px 22px; font-size:13px; color:#8A7A6C;">Todavía no hay cuentas cargadas.</div>`}`
@@ -584,9 +591,9 @@ Genova.views = (function () {
     var lista = usuarios.filter(function (u) { return u.rol === 'franquiciado' }).map(function (u) {
       var b = u.estado === 'Activo' ? { bg: '#E7F1EB', fg: '#2E7D4F' } : { bg: '#FBF3E2', fg: '#C77700' }
       var uData = `data-id="${u._row}" data-nombre="${encodeURIComponent(u.nombre || '')}" data-iniciales="${encodeURIComponent(u.iniciales || '')}" data-sucursal="${encodeURIComponent(u.sucursal || '')}" data-email="${encodeURIComponent(u.email || '')}" data-estado="${encodeURIComponent(u.estado || '')}"`
-      return `<div style="display:flex; align-items:center; gap:13px; padding:14px 22px; border-bottom:1px solid #F0EAE0;">
+      return `<div style="display:flex; align-items:center; flex-wrap:wrap; gap:13px; padding:14px 22px; border-bottom:1px solid #F0EAE0;">
         <div style="width:38px; height:38px; border-radius:50%; background:#FBEAE8; color:#C8102E; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex:0 0 auto;">${u.iniciales}</div>
-        <div style="flex:1 1 auto; min-width:0;"><div style="font-size:14px; font-weight:600;">${u.nombre}</div><div style="font-size:12px; color:#6B5A4C;">${u.sucursal} · ${u.email}</div></div>
+        <div style="flex:1 1 160px; min-width:0;"><div style="font-size:14px; font-weight:600;">${u.nombre}</div><div style="font-size:12px; color:#6B5A4C;">${u.sucursal} · ${u.email}</div></div>
         <span style="display:inline-flex; align-items:center; gap:6px; background:${b.bg}; color:${b.fg}; font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;"><span style="width:6px; height:6px; border-radius:50%; background:${b.fg};"></span>${u.estado}</span>
         <div style="display:flex; gap:8px; flex:0 0 auto;">
           <button data-action="edit-usuario" ${uData} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${miniBtn}">Editar</button>
@@ -598,11 +605,11 @@ Genova.views = (function () {
     var catCols = '1fr 90px 110px 150px'
     var cat = catalogo.map(function (c) {
       var cData = `data-id="${c._row}" data-producto="${encodeURIComponent(c.producto || '')}" data-unidad="${encodeURIComponent(c.unidad || '')}" data-precio="${c.precio}"`
-      return `<div style="display:grid; grid-template-columns:${catCols}; gap:12px; padding:13px 22px; border-bottom:1px solid #F0EAE0; align-items:center;">
-        <span style="font-size:14px; font-weight:600;">${c.producto}</span>
-        <span style="font-size:13px; color:#6B5A4C;">${c.unidad}</span>
-        <span style="font-size:14px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(c.precio)}</span>
-        <div style="display:flex; gap:8px; justify-content:flex-end;">
+      return `<div class="gv-list-row" style="display:grid; grid-template-columns:${catCols}; gap:12px; padding:13px 22px; border-bottom:1px solid #F0EAE0; align-items:center;">
+        <span class="gv-cell" data-label="Producto" style="font-size:14px; font-weight:600;">${c.producto}</span>
+        <span class="gv-cell" data-label="Unidad" style="font-size:13px; color:#6B5A4C;">${c.unidad}</span>
+        <span class="gv-cell" data-label="Precio" style="font-size:14px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(c.precio)}</span>
+        <div class="gv-cell gv-cell-actions" style="display:flex; gap:8px; justify-content:flex-end;">
           <button data-action="edit-producto" ${cData} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${miniBtn}">Editar</button>
           <button data-action="del-producto" data-id="${c._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; ${miniBtn}">Eliminar</button>
         </div>
@@ -613,7 +620,7 @@ Genova.views = (function () {
       <div style="padding:14px 22px;">
         <button data-action="open-modal" data-modal="producto" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:inline-flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Nuevo producto</button>
       </div>
-      <div style="display:grid; grid-template-columns:${catCols}; gap:12px; padding:12px 22px; background:#FAF6F0; border-top:1px solid #F0EAE0; border-bottom:1px solid #F0EAE0;">
+      <div class="gv-list-head" style="display:grid; grid-template-columns:${catCols}; gap:12px; padding:12px 22px; background:#FAF6F0; border-top:1px solid #F0EAE0; border-bottom:1px solid #F0EAE0;">
         ${th('Producto')}${th('Unidad')}${th('Precio vigente', true)}${th('Acción', true)}
       </div>
       ${cat || `<div style="padding:16px 22px; font-size:13px; color:#8A7A6C;">Todavía no hay productos cargados.</div>`}`
