@@ -67,9 +67,9 @@ Genova.api = (function () {
 
     function me() { return Promise.resolve({ email: 'demo', rol: 'admin', sucursal: '' }) }
 
-    function panelAdmin(branch, mes) {
+    function panelAdmin(kind, index, mes) {
       var sucursales = (db.sucursales || []).slice()
-      var idx = Number(branch) || 0
+      var idx = Number(index) || 0
       var sucursal = (sucursales[idx] || sucursales[0] || {}).nombre || ''
       return Promise.all([
         dashboard(sucursal, mes),
@@ -78,9 +78,10 @@ Genova.api = (function () {
         list('usuarios', {}),
         list('catalogo', {}),
       ]).then(function (r) {
-        return { sucursales: sucursales, sucursalActual: sucursal, dash: r[0], anexos: r[1], pagos: r[2], usuarios: r[3], catalogo: r[4] }
+        return { selKind: 'sucursal', sucursales: sucursales, mayoristas: [], sucursalActual: sucursal, dash: r[0], anexos: r[1], pagos: r[2], usuarios: r[3], catalogo: r[4] }
       })
     }
+    function panelComision() { return Promise.resolve({ mayoristas: [], facturas: [] }) }
     function panelFran(sucursal, mes) {
       return Promise.all([
         dashboard(sucursal, mes),
@@ -89,7 +90,7 @@ Genova.api = (function () {
       ]).then(function (r) { return { dash: r[0], anexos: r[1], pagos: r[2] } })
     }
 
-    return { me: me, panelAdmin: panelAdmin, panelFran: panelFran, list: list, dashboard: dashboard, create: create, update: update, remove: remove }
+    return { me: me, panelAdmin: panelAdmin, panelFran: panelFran, panelComision: panelComision, list: list, dashboard: dashboard, create: create, update: update, remove: remove }
   }
 
   // ============================ MODO REAL ============================
@@ -120,11 +121,14 @@ Genova.api = (function () {
       me: function () {
         return get({ action: 'me' })
       },
-      panelAdmin: function (branch, mes) {
-        return get({ action: 'panelAdmin', branch: branch, mes: mes })
+      panelAdmin: function (kind, index, mes) {
+        return get({ action: 'panelAdmin', kind: kind, index: index, mes: mes })
       },
       panelFran: function (sucursal, mes) {
         return get({ action: 'panelFran', sucursal: sucursal, mes: mes })
+      },
+      panelComision: function (mes) {
+        return get({ action: 'panelComision', mes: mes })
       },
       list: function (entidad, filtros) {
         return get(Object.assign({ action: 'list', entity: entidad }, filtros || []))

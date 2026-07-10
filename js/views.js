@@ -336,32 +336,44 @@ Genova.views = (function () {
 
   // ============================ ADMIN (desktop) ============================
   function admin(state, data) {
+    var comis = !!(state.user && state.user.rol === 'comisionista')
+    var ro = comis
     var d = data.dash
-    var p = present(d)
-    var main = state.aTab === 'resumen' ? adminResumen(d, p)
+    var p = state.selKind === 'sucursal' ? present(d) : null
+    var main
+    if (state.selKind === 'comision') main = comisionResumen(state, data)
+    else if (state.selKind === 'mayorista') main = mayoristaView(state, data, ro)
+    else main = state.aTab === 'resumen' ? adminResumen(d, p)
       : state.aTab === 'anexos' ? adminAnexos(d, data.anexos)
       : state.aTab === 'pagos' ? adminPagos(d, p, data.pagos)
-      : adminConfig(data.usuarios, data.catalogo, data.alias)
+      : adminConfig(data.usuarios, data.catalogo, data.alias, data.mayoristas)
 
     var navDef = [['resumen', 'Resumen'], ['anexos', 'Productos anexos'], ['pagos', 'Pagos'], ['config', 'Configuración']]
     var nav = navDef.map(function (n) {
-      var active = state.aTab === n[0]
+      var active = state.selKind === 'sucursal' && state.aTab === n[0]
       return `<button data-action="atab" data-tab="${n[0]}" style="width:100%; display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:8px; border:none; background:${active ? '#FBEAE8' : 'transparent'}; color:${active ? '#C8102E' : '#6B5A4C'}; font-size:14px; font-weight:${active ? 600 : 500}; cursor:pointer; text-align:left; margin-bottom:2px; font-family:'Inter',sans-serif;">
         <span style="width:18px; height:18px; display:inline-flex;">${icon(n[0], 18)}</span>${n[1]}</button>`
     }).join('')
 
-    var branches = data.sucursales.map(function (b, i) {
-      var active = i === state.branch
-      return `<button data-action="branch" data-index="${i}" style="width:100%; display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px; border:none; background:${active ? '#FBEAE8' : 'transparent'}; cursor:pointer; text-align:left; margin-bottom:2px; font-family:'Inter',sans-serif;">
+    function pill(action, active, nombre, i) {
+      return `<button data-action="${action}" data-index="${i}" style="width:100%; display:flex; align-items:center; gap:10px; padding:9px 12px; border-radius:8px; border:none; background:${active ? '#FBEAE8' : 'transparent'}; cursor:pointer; text-align:left; margin-bottom:2px; font-family:'Inter',sans-serif;">
         <span style="width:8px; height:8px; border-radius:50%; background:${active ? '#C8102E' : '#C8B7A6'}; flex:0 0 auto;"></span>
-        <span style="flex:1 1 auto; font-size:13px; font-weight:${active ? 600 : 500}; color:${active ? '#C8102E' : '#2B1B12'};">${b.nombre}</span>
+        <span style="flex:1 1 auto; font-size:13px; font-weight:${active ? 600 : 500}; color:${active ? '#C8102E' : '#2B1B12'};">${nombre}</span>
       </button>`
+    }
+    var branches = data.sucursales.map(function (b, i) {
+      return pill('branch', state.selKind === 'sucursal' && i === state.branch, b.nombre, i)
     }).join('')
+    var mayoristas = (data.mayoristas || []).map(function (b, i) {
+      return pill('branch-may', state.selKind === 'mayorista' && i === state.mayorista, b.nombre, i)
+    }).join('') || `<div style="font-size:12px; color:#A89684; padding:6px 12px;">Sin mayoristas cargados</div>`
+    var resumenItem = `<button data-action="sel-comision" style="width:100%; display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:8px; border:none; background:${state.selKind === 'comision' ? '#FBEAE8' : 'transparent'}; color:${state.selKind === 'comision' ? '#C8102E' : '#6B5A4C'}; font-size:14px; font-weight:${state.selKind === 'comision' ? 600 : 500}; cursor:pointer; text-align:left; margin-bottom:2px; font-family:'Inter',sans-serif;"><span style="width:18px; height:18px; display:inline-flex;">${icon('resumen', 18)}</span>Resumen mensual</button>`
 
     var titulos = { resumen: 'Resumen', anexos: 'Productos anexos', pagos: 'Pagos', config: 'Configuración' }
+    var tituloMobile = state.selKind === 'comision' ? 'Resumen mensual' : (state.selKind === 'mayorista' ? 'Mayorista' : (titulos[state.aTab] || ''))
     var mobileBar = `<div class="gv-mobilebar" style="align-items:center; gap:12px; padding:2px 2px 14px; margin-bottom:6px; border-bottom:1px solid #F0EAE0;">
       <button data-action="toggle-nav" aria-label="Menú" style="background:#fff; border:1px solid #E5DDD2; border-radius:8px; width:42px; height:42px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#2B1B12; flex:0 0 auto;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
-      <span style="font-family:'Playfair Display',serif; font-weight:700; font-size:18px;">${titulos[state.aTab] || ''}</span>
+      <span style="font-family:'Playfair Display',serif; font-weight:700; font-size:18px;">${tituloMobile}</span>
     </div>`
 
     return `
@@ -375,16 +387,19 @@ Genova.views = (function () {
             <div style="font-size:11px; color:#6B5A4C; font-weight:500;">Panel de administración</div>
           </div>
         </div>
-        <div style="font-size:10px; font-weight:700; letter-spacing:.08em; color:#A89684; text-transform:uppercase; padding:8px 8px 6px;">Cuenta corriente</div>
+        ${comis ? '' : `<div style="font-size:10px; font-weight:700; letter-spacing:.08em; color:#A89684; text-transform:uppercase; padding:8px 8px 6px;">Cuenta corriente</div>
         ${nav}
         <div style="font-size:10px; font-weight:700; letter-spacing:.08em; color:#A89684; text-transform:uppercase; padding:22px 8px 6px;">Sucursales</div>
         ${branches}
-        <button data-action="view-as-fran" style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px; padding:9px 12px; border-radius:8px; border:1px dashed #C8B7A6; background:transparent; color:#6B5A4C; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">${icon('home', 15)} Ver como franquiciado</button>
+        <button data-action="view-as-fran" style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px; padding:9px 12px; border-radius:8px; border:1px dashed #C8B7A6; background:transparent; color:#6B5A4C; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">${icon('home', 15)} Ver como franquiciado</button>`}
+        <div style="font-size:10px; font-weight:700; letter-spacing:.08em; color:#A89684; text-transform:uppercase; padding:22px 8px 6px;">Mayoristas</div>
+        ${resumenItem}
+        ${mayoristas}
         <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px 8px; border-top:1px solid #F0EAE0;">
           <div style="width:32px; height:32px; border-radius:50%; background:#2B1B12; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;">${(state.user && state.user.iniciales) || '··'}</div>
           <div style="line-height:1.2; flex:1 1 auto;">
             <div style="font-size:13px; font-weight:600;">${(state.user && state.user.nombre) || 'Administrador'}</div>
-            <div style="font-size:11px; color:#6B5A4C;">Franquiciante</div>
+            <div style="font-size:11px; color:#6B5A4C;">${comis ? 'Comisionista' : 'Franquiciante'}</div>
           </div>
           <button data-action="logout" style="background:none; border:none; color:#C8102E; font-size:11px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Salir</button>
         </div>
@@ -548,6 +563,136 @@ Genova.views = (function () {
     </div>`
   }
 
+  // ============================ MAYORISTAS (admin) ============================
+  function switchPagada(on, id) {
+    return `<button data-action="${on ? 'unmark-pagada' : 'marcar-pagada'}" data-id="${id}" title="Pagada" style="display:inline-flex; align-items:center; gap:8px; background:none; border:none; cursor:pointer; font-family:'Inter',sans-serif; padding:0;">
+      <span style="width:36px; height:20px; border-radius:999px; background:${on ? '#2E7D4F' : '#D9CBBA'}; position:relative; flex:0 0 auto;"><span style="position:absolute; top:2px; left:${on ? '18px' : '2px'}; width:16px; height:16px; border-radius:50%; background:#fff;"></span></span>
+      <span style="font-size:13px; font-weight:600; color:${on ? '#2E7D4F' : '#6B5A4C'};">Pagada</span>
+    </button>`
+  }
+  function comunicarBtn(tel, nombre, fc) {
+    return `<button data-action="comunicar-deuda" data-tel="${escAttr(tel || '')}" data-nombre="${encodeURIComponent(nombre || '')}" data-nro="${encodeURIComponent(fc.nroFactura || '')}" data-monto="${escAttr(money(fc.monto))}" data-dias="${fc.dias}" style="background:#C8102E; color:#fff; border:none; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Comunicar deuda</button>`
+  }
+  function estadoPill(fc) {
+    return fc.pagada
+      ? `<span style="display:inline-flex; align-items:center; gap:6px; background:#E7F1EB; color:#2E7D4F; font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;">Pagada${fc.fechaPago ? ' · ' + f.dmy(fc.fechaPago) : ''}</span>`
+      : `<span style="display:inline-flex; align-items:center; gap:6px; background:${fc.vencida ? '#FBEAE8' : '#FBF3E2'}; color:${fc.vencida ? '#B3261E' : '#C77700'}; font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;">${fc.vencida ? 'Vencida' : 'Impaga'}</span>`
+  }
+  var mCols = '104px 1fr 120px 90px 160px 200px'
+
+  // Vista integrada de un mayorista: cuentas por cobrar + carga/gestión de facturas.
+  // ro = solo lectura (comisionista): oculta alta/toggle/eliminar; deja "Comunicar deuda".
+  function mayoristaView(state, data, ro) {
+    var m = data.mayoristaActual
+    if (!m) return `<div style="padding:60px 20px; text-align:center; color:#6B5A4C;">Elegí un mayorista en el menú lateral.</div>`
+    var mes = state.mes
+    var all = data.facturas || []
+    var facturadoMes = 0, pagadoMes = 0, deuda = 0
+    all.forEach(function (fc) {
+      var monto = Number(fc.monto) || 0
+      if (String(fc.fecha).slice(0, 7) === mes) facturadoMes += monto
+      if (fc.pagada && String(fc.fechaPago || '').slice(0, 7) === mes) pagadoMes += monto
+      if (!fc.pagada) deuda += monto
+    })
+    var statLabel = 'font-size:12px; color:#6B5A4C; font-weight:600; text-transform:uppercase;'
+    var delMes = all.filter(function (fc) { return String(fc.fecha).slice(0, 7) === mes })
+      .sort(function (a, b) { return a.fecha < b.fecha ? 1 : (a.fecha > b.fecha ? -1 : 0) })
+    var body = delMes.map(function (fc) {
+      var diasCell = fc.pagada ? '—' : `<span style="color:${fc.vencida ? '#B3261E' : '#6B5A4C'}; font-weight:${fc.vencida ? 600 : 500};">${fc.dias} d</span>`
+      var pagadaCell = ro
+        ? estadoPill(fc)
+        : `${switchPagada(fc.pagada, fc._row)}${fc.pagada && fc.fechaPago ? `<div style="font-size:11px; color:#6B5A4C; margin-top:2px;">${f.dmy(fc.fechaPago)}</div>` : ''}`
+      var accion = `<div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">${fc.vencida ? comunicarBtn(m.telefono, m.nombre, fc) : ''}${ro ? '' : `<button data-action="del-factura" data-id="${fc._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Eliminar</button>`}</div>`
+      return `<div class="gv-list-row" style="display:grid; grid-template-columns:${mCols}; gap:14px; padding:14px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
+        <span class="gv-cell" data-label="Fecha" style="font-size:14px;">${f.dmy(fc.fecha)}</span>
+        <span class="gv-cell" data-label="Factura" style="font-size:14px; font-weight:600;">${fc.nroFactura}</span>
+        <span class="gv-cell" data-label="Monto" style="font-size:14px; text-align:right; font-weight:600; font-variant-numeric:tabular-nums;">${money(fc.monto)}</span>
+        <span class="gv-cell" data-label="Días s/pago" style="font-size:14px; text-align:right;">${diasCell}</span>
+        <span class="gv-cell" data-label="Pagada">${pagadaCell}</span>
+        <div class="gv-cell gv-cell-actions" style="text-align:right;">${accion}</div>
+      </div>`
+    }).join('') || `<div style="padding:16px 20px; font-size:13px; color:#8A7A6C;">No hay facturas cargadas en este mes.</div>`
+
+    var vcols = '104px 1fr 130px 90px 170px'
+    var vencOtros = all.filter(function (fc) { return fc.vencida && String(fc.fecha).slice(0, 7) !== mes })
+    var vencBlock = vencOtros.length ? `
+    <div style="margin-top:20px; background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden; border-left:4px solid #C8102E;">
+      <div style="padding:16px 20px; border-bottom:1px solid #F0EAE0;"><span style="font-family:'Playfair Display',serif; font-weight:600; font-size:17px;">Vencidas de otros meses · ${vencOtros.length}</span></div>
+      <div class="gv-list-head" style="display:grid; grid-template-columns:${vcols}; gap:14px; padding:12px 20px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">${th('Fecha')}${th('Factura')}${th('Monto', true)}${th('Atraso', true)}${th('Acción', true)}</div>
+      ${vencOtros.map(function (fc) {
+        return `<div class="gv-list-row" style="display:grid; grid-template-columns:${vcols}; gap:14px; padding:14px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
+          <span class="gv-cell" data-label="Fecha" style="font-size:14px;">${f.dmy(fc.fecha)}</span>
+          <span class="gv-cell" data-label="Factura" style="font-size:14px; font-weight:600;">${fc.nroFactura}</span>
+          <span class="gv-cell" data-label="Monto" style="font-size:14px; text-align:right; font-weight:600;">${money(fc.monto)}</span>
+          <span class="gv-cell" data-label="Atraso" style="font-size:14px; text-align:right; color:#B3261E; font-weight:600;">${fc.dias} d</span>
+          <div class="gv-cell gv-cell-actions" style="text-align:right;">${comunicarBtn(m.telefono, m.nombre, fc)}</div>
+        </div>`
+      }).join('')}
+    </div>` : ''
+
+    return `
+    <div class="gv-head" style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:22px;">
+      <div><h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Mayorista — ${m.nombre}</h1><div style="font-size:13px; color:#6B5A4C; margin-top:6px;">CUIT ${m.cuit || '—'} · plazo de pago ${m.plazoPago || '—'} días</div></div>
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">${monthNav(mes)}${ro ? '' : `<button data-action="open-modal" data-modal="factura" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Nueva factura</button>`}</div>
+    </div>
+    <div class="gv-two-col" style="display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-bottom:22px;">
+      <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:18px 22px;"><div style="${statLabel}">Facturado del mes</div><div style="font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:6px;">${money(facturadoMes)}</div></div>
+      <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:18px 22px;"><div style="${statLabel}">Pagado del mes</div><div style="font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; color:#2E7D4F; margin-top:6px;">${money(pagadoMes)}</div></div>
+      <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:18px 22px; border-left:4px solid ${deuda > 0 ? '#C8102E' : '#E5DDD2'};"><div style="${statLabel}">Deuda pendiente</div><div style="font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; color:${deuda > 0 ? '#B3261E' : '#2E7D4F'}; margin-top:6px;">${money(deuda)}</div></div>
+    </div>
+    <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
+      <div class="gv-list-head" style="display:grid; grid-template-columns:${mCols}; gap:14px; padding:12px 20px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">${th('Fecha')}${th('Factura')}${th('Monto', true)}${th('Días s/pago', true)}${th('Pagada')}${th('Acción', true)}</div>
+      ${body}
+    </div>
+    ${vencBlock}`
+  }
+
+  // Resumen mensual de comisiones: FC del mes agrupadas por mayorista, monto + 10%.
+  function comisionResumen(state, data) {
+    var mes = state.mes
+    var delMes = (data.facturas || []).filter(function (fc) { return String(fc.fecha).slice(0, 7) === mes })
+    var totalFacturado = 0, totalComision = 0
+    delMes.forEach(function (fc) { var monto = Number(fc.monto) || 0; totalFacturado += monto; totalComision += monto * 0.10 })
+    var byMay = {}
+    delMes.forEach(function (fc) { (byMay[fc.mayorista] = byMay[fc.mayorista] || []).push(fc) })
+    var statLabel = 'font-size:12px; color:#6B5A4C; font-weight:600; text-transform:uppercase;'
+    var cols = '104px 1fr 140px 140px 120px'
+    var sections = Object.keys(byMay).sort().map(function (nombre) {
+      var rows = byMay[nombre]
+      var sub = 0
+      var rowsHtml = rows.map(function (fc) {
+        var monto = Number(fc.monto) || 0
+        sub += monto * 0.10
+        return `<div class="gv-list-row" style="display:grid; grid-template-columns:${cols}; gap:14px; padding:13px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
+          <span class="gv-cell" data-label="Fecha" style="font-size:14px;">${f.dmy(fc.fecha)}</span>
+          <span class="gv-cell" data-label="Factura" style="font-size:14px; font-weight:600;">${fc.nroFactura}</span>
+          <span class="gv-cell" data-label="Monto" style="font-size:14px; text-align:right; font-variant-numeric:tabular-nums;">${money(monto)}</span>
+          <span class="gv-cell" data-label="Comisión 10%" style="font-size:14px; text-align:right; font-weight:700; color:#2E7D4F; font-variant-numeric:tabular-nums;">${money(monto * 0.10)}</span>
+          <span class="gv-cell" data-label="Estado" style="text-align:right;">${estadoPill(fc)}</span>
+        </div>`
+      }).join('')
+      return `<div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden; margin-bottom:18px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #F0EAE0;">
+          <span style="font-family:'Playfair Display',serif; font-weight:600; font-size:16px;">${nombre}</span>
+          <span style="font-size:13px; color:#6B5A4C;">Comisión: <b style="color:#2E7D4F;">${money(sub)}</b></span>
+        </div>
+        <div class="gv-list-head" style="display:grid; grid-template-columns:${cols}; gap:14px; padding:11px 20px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">${th('Fecha')}${th('Factura')}${th('Monto', true)}${th('Comisión 10%', true)}${th('Estado', true)}</div>
+        ${rowsHtml}
+      </div>`
+    }).join('') || `<div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:24px; text-align:center; color:#8A7A6C;">No hay facturas cargadas en este mes.</div>`
+
+    return `
+    <div class="gv-head" style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:22px;">
+      <div><h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Resumen mensual</h1><div style="font-size:13px; color:#6B5A4C; margin-top:6px;">Facturas del mes por mayorista y tu comisión (10%).</div></div>
+      ${monthNav(mes)}
+    </div>
+    <div class="gv-two-col" style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-bottom:22px;">
+      <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:18px 22px;"><div style="${statLabel}">Facturado del mes</div><div style="font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:6px;">${money(totalFacturado)}</div></div>
+      <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:18px 22px; border-left:4px solid #2E7D4F;"><div style="${statLabel}">Comisión a cobrar (10%)</div><div style="font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; color:#2E7D4F; margin-top:6px;">${money(totalComision)}</div></div>
+    </div>
+    ${sections}`
+  }
+
   // Tarjeta con encabezado clickeable que colapsa su contenido (toggle por JS).
   // Arranca colapsada; el header dispara la acción 'collap' que muestra/oculta #id.
   function collapCard(id, title, subtitle, inner, borderColor) {
@@ -563,7 +708,31 @@ Genova.views = (function () {
     </div>`
   }
 
-  function adminConfig(usuarios, catalogo, alias) {
+  function adminConfig(usuarios, catalogo, alias, mayoristas) {
+    var mayCols = '1fr 130px 80px 140px 150px'
+    var mayRows = (mayoristas || []).map(function (m) {
+      var md = `data-id="${m._row}" data-nombre="${encodeURIComponent(m.nombre || '')}" data-cuit="${encodeURIComponent(m.cuit || '')}" data-plazo="${m.plazoPago || ''}" data-tel="${encodeURIComponent(m.telefono || '')}"`
+      var mb = 'border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:\'Inter\',sans-serif; cursor:pointer;'
+      return `<div class="gv-list-row" style="display:grid; grid-template-columns:${mayCols}; gap:12px; padding:13px 22px; border-bottom:1px solid #F0EAE0; align-items:center;">
+        <span class="gv-cell" data-label="Nombre" style="font-size:14px; font-weight:600;">${m.nombre || '—'}</span>
+        <span class="gv-cell" data-label="CUIT" style="font-size:13px; color:#6B5A4C;">${m.cuit || '—'}</span>
+        <span class="gv-cell" data-label="Plazo" style="font-size:13px; color:#6B5A4C; text-align:right;">${m.plazoPago || '—'} d</span>
+        <span class="gv-cell" data-label="Teléfono" style="font-size:13px; color:#6B5A4C;">${m.telefono || '—'}</span>
+        <div class="gv-cell gv-cell-actions" style="display:flex; gap:8px; justify-content:flex-end;">
+          <button data-action="edit-mayorista" ${md} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${mb}">Editar</button>
+          <button data-action="del-mayorista" data-id="${m._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; ${mb}">Eliminar</button>
+        </div>
+      </div>`
+    }).join('')
+    var mayInner = `
+      <div style="padding:14px 22px;">
+        <button data-action="open-modal" data-modal="mayorista" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:inline-flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Nuevo mayorista</button>
+      </div>
+      <div class="gv-list-head" style="display:grid; grid-template-columns:${mayCols}; gap:12px; padding:12px 22px; background:#FAF6F0; border-top:1px solid #F0EAE0; border-bottom:1px solid #F0EAE0;">
+        ${th('Nombre')}${th('CUIT')}${th('Plazo', true)}${th('Teléfono')}${th('Acción', true)}
+      </div>
+      ${mayRows || `<div style="padding:16px 22px; font-size:13px; color:#8A7A6C;">Todavía no hay mayoristas cargados.</div>`}`
+
     var cuentasCols = '1fr 1fr 1fr 160px'
     var cuentas = (Array.isArray(alias) ? alias : []).map(function (c) {
       var dataAttrs = `data-id="${c._row}" data-concepto="${encodeURIComponent(c.concepto || '')}" data-cbu="${encodeURIComponent(c.aliasCbu || '')}" data-titular="${encodeURIComponent(c.titular || '')}"`
@@ -588,12 +757,13 @@ Genova.views = (function () {
       ${cuentas || `<div style="padding:16px 22px; font-size:13px; color:#8A7A6C;">Todavía no hay cuentas cargadas.</div>`}`
 
     var miniBtn = 'border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:\'Inter\',sans-serif; cursor:pointer;'
-    var lista = usuarios.filter(function (u) { return u.rol === 'franquiciado' }).map(function (u) {
+    var lista = usuarios.filter(function (u) { return u.rol === 'franquiciado' || u.rol === 'comisionista' }).map(function (u) {
       var b = u.estado === 'Activo' ? { bg: '#E7F1EB', fg: '#2E7D4F' } : { bg: '#FBF3E2', fg: '#C77700' }
-      var uData = `data-id="${u._row}" data-nombre="${encodeURIComponent(u.nombre || '')}" data-iniciales="${encodeURIComponent(u.iniciales || '')}" data-sucursal="${encodeURIComponent(u.sucursal || '')}" data-email="${encodeURIComponent(u.email || '')}" data-estado="${encodeURIComponent(u.estado || '')}"`
+      var sub = u.rol === 'comisionista' ? 'Comisionista' : (u.sucursal || 'Franquiciado')
+      var uData = `data-id="${u._row}" data-nombre="${encodeURIComponent(u.nombre || '')}" data-iniciales="${encodeURIComponent(u.iniciales || '')}" data-sucursal="${encodeURIComponent(u.sucursal || '')}" data-email="${encodeURIComponent(u.email || '')}" data-estado="${encodeURIComponent(u.estado || '')}" data-rol="${encodeURIComponent(u.rol || 'franquiciado')}"`
       return `<div style="display:flex; align-items:center; flex-wrap:wrap; gap:13px; padding:14px 22px; border-bottom:1px solid #F0EAE0;">
         <div style="width:38px; height:38px; border-radius:50%; background:#FBEAE8; color:#C8102E; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:700; flex:0 0 auto;">${u.iniciales}</div>
-        <div style="flex:1 1 160px; min-width:0;"><div style="font-size:14px; font-weight:600;">${u.nombre}</div><div style="font-size:12px; color:#6B5A4C;">${u.sucursal} · ${u.email}</div></div>
+        <div style="flex:1 1 160px; min-width:0;"><div style="font-size:14px; font-weight:600;">${u.nombre}</div><div style="font-size:12px; color:#6B5A4C;">${sub} · ${u.email}</div></div>
         <span style="display:inline-flex; align-items:center; gap:6px; background:${b.bg}; color:${b.fg}; font-size:12px; font-weight:600; padding:4px 10px; border-radius:999px;"><span style="width:6px; height:6px; border-radius:50%; background:${b.fg};"></span>${u.estado}</span>
         <div style="display:flex; gap:8px; flex:0 0 auto;">
           <button data-action="edit-usuario" ${uData} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${miniBtn}">Editar</button>
@@ -630,12 +800,13 @@ Genova.views = (function () {
     ${collapCard('gv-collap-alias', 'Cuentas para cobros (alias / CBU) · ' + (Array.isArray(alias) ? alias.length : 0), 'Se le muestran al franquiciado al registrar un pago, para que copie el alias o CBU.', aliasInner, '#C8102E')}
     <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden; margin-bottom:24px;">
       <div style="display:flex; align-items:center; justify-content:space-between; padding:18px 22px; border-bottom:1px solid #F0EAE0;">
-        <div><div style="font-family:'Playfair Display',serif; font-weight:600; font-size:17px;">Franquiciados</div><div style="font-size:12px; color:#6B5A4C; margin-top:2px;">Un acceso por sucursal.</div></div>
+        <div><div style="font-family:'Playfair Display',serif; font-weight:600; font-size:17px;">Usuarios</div><div style="font-size:12px; color:#6B5A4C; margin-top:2px;">Franquiciados (por sucursal) y comisionistas (mayoristas).</div></div>
         <button data-action="open-modal" data-modal="usuario" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:9px 15px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:7px;">${icon('plus', 15, 2.4)} Alta</button>
       </div>
       ${lista}
     </div>
-    ${collapCard('gv-collap-cat', 'Catálogo de productos anexos · ' + catalogo.length, 'Precio vigente que se aplica al cargar anexos.', catInner)}`
+    ${collapCard('gv-collap-cat', 'Catálogo de productos anexos · ' + catalogo.length, 'Precio vigente que se aplica al cargar anexos.', catInner)}
+    ${collapCard('gv-collap-may', 'Mayoristas · ' + (mayoristas || []).length, 'Empresas mayoristas: nombre, CUIT, plazo de pago y teléfono (para avisar deudas).', mayInner, '#2E7D4F')}`
   }
 
   // ============================ MODALES (admin) ============================
@@ -693,6 +864,15 @@ Genova.views = (function () {
         campo('Alias o CBU', `<input id="gv-cuenta-cbu" value="${escAttr(ec.aliasCbu)}" placeholder="Ej: genova.pastas / 01700..." style="${inputBase}">`) +
         campo('Nombre en la cuenta', `<input id="gv-cuenta-titular" value="${escAttr(ec.titular)}" placeholder="Ej: Roberto Genova S.A." style="${inputBase}">`))
     }
+    if (state.modal === 'mayorista' || state.modal === 'edit-mayorista') {
+      var em = state.modal === 'edit-mayorista' ? (state.edit || {}) : {}
+      var saveM = state.modal === 'edit-mayorista' ? 'save-edit-mayorista' : 'save-mayorista'
+      return overlay(state.modal === 'edit-mayorista' ? 'Editar mayorista' : 'Nuevo mayorista', saveM,
+        campo('Nombre', `<input id="gv-may-nombre" value="${escAttr(em.nombre)}" style="${inputBase}">`) +
+        campo('CUIT', `<input id="gv-may-cuit" value="${escAttr(em.cuit)}" placeholder="30-12345678-9" style="${inputBase}">`) +
+        campo('Plazo de pago (días)', `<input id="gv-may-plazo" value="${em.plazoPago || ''}" inputmode="numeric" placeholder="30" style="${inputBase}">`) +
+        campo('Teléfono (WhatsApp, con código país)', `<input id="gv-may-tel" value="${escAttr(em.telefono)}" placeholder="Ej: 5492211234567" style="${inputBase}">`))
+    }
     if (state.modal === 'edit-pago') return editPagoOverlay(state)
     if (state.modal === 'edit-anexo') {
       var e = state.edit || {}
@@ -710,6 +890,17 @@ Genova.views = (function () {
 
     if (state.modal === 'pago') {
       return overlay('Registrar pago', 'save-pago', pagoFields(data.alias))
+    }
+
+    if (state.modal === 'factura') {
+      return overlay('Nueva factura', 'save-factura',
+        campo('Nº de factura', `<input id="gv-fc-nro" placeholder="Ej: 0001-00001234" style="${inputBase}">`) +
+        campo('Monto', `<input id="gv-fc-monto" data-num inputmode="decimal" placeholder="0" style="${inputBase}">`) +
+        fechaCampo)
+    }
+    if (state.modal === 'marcar-pagada') {
+      return overlay('Marcar factura pagada', 'save-marcar-pagada',
+        campo('Fecha de pago (dd/mm)', `<input id="gv-fecha" value="${hoyDDMM}" placeholder="dd/mm" inputmode="numeric" style="${inputBase}">`))
     }
 
     if (state.modal === 'anexo') {
@@ -731,10 +922,14 @@ Genova.views = (function () {
       var ests = ['Activo', 'Inactivo'].map(function (x) {
         return `<option value="${x}"${(eu.estado || 'Activo') === x ? ' selected' : ''}>${x}</option>`
       }).join('')
-      return overlay(state.modal === 'edit-usuario' ? 'Editar franquiciado' : 'Alta de franquiciado', saveU,
+      var roles = [['franquiciado', 'Franquiciado'], ['comisionista', 'Comisionista']].map(function (r) {
+        return `<option value="${r[0]}"${(eu.rol || 'franquiciado') === r[0] ? ' selected' : ''}>${r[1]}</option>`
+      }).join('')
+      return overlay(state.modal === 'edit-usuario' ? 'Editar usuario' : 'Alta de usuario', saveU,
         campo('Nombre', `<input id="gv-user-nombre" value="${escAttr(eu.nombre)}" style="${inputBase}">`) +
         campo('Iniciales', `<input id="gv-user-iniciales" value="${escAttr(eu.iniciales)}" maxlength="3" placeholder="Ej: MF" style="${inputBase}">`) +
-        campo('Sucursal', `<select id="gv-user-sucursal" style="${inputBase}">${sucs}</select>`) +
+        campo('Rol', `<select id="gv-user-rol" style="${inputBase}">${roles}</select>`) +
+        campo('Sucursal (solo franquiciado)', `<select id="gv-user-sucursal" style="${inputBase}"><option value="">—</option>${sucs}</select>`) +
         campo('Email', `<input id="gv-user-email" type="email" value="${escAttr(eu.email)}" style="${inputBase}">`) +
         (state.modal === 'edit-usuario' ? campo('Estado', `<select id="gv-user-estado" style="${inputBase}">${ests}</select>`) : ''))
     }

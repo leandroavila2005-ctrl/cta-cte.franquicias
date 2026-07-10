@@ -13,6 +13,8 @@ window.Genova = window.Genova || {}
     fTab: 'resumen', // pestaña del franquiciado
     aTab: 'resumen', // pestaña del admin
     branch: 0, // índice de sucursal activa (admin)
+    selKind: 'sucursal', // 'sucursal' | 'mayorista' — qué se seleccionó en el sidebar admin
+    mayorista: 0, // índice de mayorista activo (admin)
     det: true, // detalle del cálculo abierto (franquiciado)
     modal: null, // modal abierto: 'pago' | 'anexo' | 'usuario' | 'producto' | 'edit-anexo' | 'edit-pago'
     edit: null, // fila que se está editando: { row, ...valores }
@@ -49,17 +51,12 @@ window.Genova = window.Genova || {}
     }
 
     // admin — una sola llamada trae todo lo de la pantalla
-    var res = await api.panelAdmin(state.branch, state.mes)
-    state.sucursalActual = res.sucursalActual
-    root.innerHTML = views.admin(state, {
-      sucursales: res.sucursales,
-      dash: res.dash,
-      anexos: res.anexos,
-      pagos: res.pagos,
-      usuarios: res.usuarios,
-      catalogo: res.catalogo,
-      alias: res.alias,
-    }) + views.adminModal(state, { sucursales: res.sucursales, catalogo: res.catalogo, alias: res.alias })
+    var idx = state.selKind === 'mayorista' ? state.mayorista : state.branch
+    var res = await api.panelAdmin(state.selKind, idx, state.mes)
+    state.sucursalActual = res.sucursalActual || ''
+    state.mayoristaActual = res.mayoristaActual || null
+    root.innerHTML = views.admin(state, res) +
+      views.adminModal(state, { sucursales: res.sucursales, catalogo: res.catalogo, alias: res.alias, mayoristas: res.mayoristas })
   }
 
   // --- Helpers de formularios ---
@@ -72,6 +69,7 @@ window.Genova = window.Genova || {}
     s = String(s).replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')
     return Math.round((parseFloat(s) || 0) * 100) / 100
   }
+  function esComisionista() { return !!(state.user && state.user.rol === 'comisionista') }
 
   // Reformatea un input numérico a formato argentino en vivo (miles "." + decimal ",").
   function reformatNum(el) {
@@ -129,8 +127,10 @@ window.Genova = window.Genova || {}
       return false // el render lo dispara onCredential cuando Google responde
     },
     'ftab': function (el) { state.fTab = el.getAttribute('data-tab') },
-    'atab': function (el) { state.aTab = el.getAttribute('data-tab') },
-    'branch': function (el) { state.branch = parseInt(el.getAttribute('data-index'), 10) },
+    'atab': function (el) { state.selKind = 'sucursal'; state.aTab = el.getAttribute('data-tab') },
+    'branch': function (el) { state.selKind = 'sucursal'; state.branch = parseInt(el.getAttribute('data-index'), 10); state.aTab = 'resumen' },
+    'branch-may': function (el) { state.selKind = 'mayorista'; state.mayorista = parseInt(el.getAttribute('data-index'), 10) },
+    'sel-comision': function () { state.selKind = 'comision' },
     'toggle-det': function () { state.det = !state.det },
     'prev-month': function () { state.mes = correrMes(state.mes, -1) },
     'next-month': function () { if (state.mes < cfg.MES_ACTUAL) state.mes = correrMes(state.mes, 1) },
@@ -199,7 +199,7 @@ window.Genova = window.Genova || {}
       state.modal = null
       return api.create('usuarios', {
         nombre: nombre, iniciales: val('gv-user-iniciales'), sucursal: val('gv-user-sucursal'),
-        email: val('gv-user-email'), rol: 'franquiciado', estado: 'Activo',
+        email: val('gv-user-email'), rol: val('gv-user-rol') || 'franquiciado', estado: 'Activo',
       })
     },
 
@@ -257,6 +257,79 @@ window.Genova = window.Genova || {}
         producto: producto, unidad: val('gv-prod-unidad'), precio: num(val('gv-prod-precio')),
       })
     },
+
+    // ---------- Mayoristas (Configuración) ----------
+    'save-mayorista': function () {
+      var nombre = val('gv-may-nombre')
+      if (!nombre) return false
+      state.modal = null
+      return api.create('mayoristas', { nombre: nombre, cuit: val('gv-may-cuit'), plazoPago: num(val('gv-may-plazo')), telefono: val('gv-may-tel') })
+    },
+    'edit-mayorista': function (el) {
+      state.edit = {
+        row: parseInt(el.getAttribute('data-id'), 10),
+        nombre: decodeURIComponent(el.getAttribute('data-nombre') || ''),
+        cuit: decodeURIComponent(el.getAttribute('data-cuit') || ''),
+        plazoPago: el.getAttribute('data-plazo'),
+        telefono: decodeURIComponent(el.getAttribute('data-tel') || ''),
+      }
+      state.modal = 'edit-mayorista'
+    },
+    'del-mayorista': function (el) {
+      if (!window.confirm('¿Eliminar este mayorista?')) return false
+      return api.remove('mayoristas', parseInt(el.getAttribute('data-id'), 10))
+    },
+    'save-edit-mayorista': function () {
+      var nombre = val('gv-may-nombre')
+      if (!nombre) return false
+      var row = state.edit.row
+      state.modal = null; state.edit = null
+      return api.update('mayoristas', row, { nombre: nombre, cuit: val('gv-may-cuit'), plazoPago: num(val('gv-may-plazo')), telefono: val('gv-may-tel') })
+    },
+
+    // ---------- Facturación mayorista ----------
+    'save-factura': function () {
+      if (esComisionista()) return false
+      var nro = val('gv-fc-nro')
+      var monto = num(val('gv-fc-monto'))
+      if (!nro || !monto) return false
+      state.modal = null
+      var fecha = isoFecha(val('gv-fecha'))
+      var may = (state.mayoristaActual && state.mayoristaActual.nombre) || ''
+      return api.create('facturas', { mayorista: may, fecha: fecha, nroFactura: nro, monto: monto, pagada: false, fechaPago: '' })
+    },
+    'del-factura': function (el) {
+      if (esComisionista()) return false
+      if (!window.confirm('¿Eliminar esta factura?')) return false
+      return api.remove('facturas', parseInt(el.getAttribute('data-id'), 10))
+    },
+    'marcar-pagada': function (el) {
+      if (esComisionista()) return false
+      state.edit = { row: parseInt(el.getAttribute('data-id'), 10) }
+      state.modal = 'marcar-pagada'
+    },
+    'save-marcar-pagada': function () {
+      if (esComisionista()) return false
+      var row = state.edit.row
+      state.modal = null; state.edit = null
+      return api.update('facturas', row, { pagada: true, fechaPago: isoFecha(val('gv-fecha')) })
+    },
+    'unmark-pagada': function (el) {
+      if (esComisionista()) return false
+      if (!window.confirm('¿Marcar esta factura como NO pagada?')) return false
+      return api.update('facturas', parseInt(el.getAttribute('data-id'), 10), { pagada: false, fechaPago: '' })
+    },
+    'comunicar-deuda': function (el) {
+      var tel = (el.getAttribute('data-tel') || '').replace(/\D/g, '')
+      if (!tel) { window.alert('Este mayorista no tiene teléfono cargado. Agregalo en Configuración → Mayoristas.'); return false }
+      var nombre = decodeURIComponent(el.getAttribute('data-nombre') || '')
+      var nro = decodeURIComponent(el.getAttribute('data-nro') || '')
+      var monto = el.getAttribute('data-monto') || ''
+      var dias = el.getAttribute('data-dias') || ''
+      var msg = 'Hola ' + nombre + ', te recordamos la factura ' + nro + ' por ' + monto + ' con ' + dias + ' días de atraso. ¡Gracias!'
+      window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank')
+      return false
+    },
     'edit-producto': function (el) {
       state.edit = {
         row: parseInt(el.getAttribute('data-id'), 10),
@@ -286,6 +359,7 @@ window.Genova = window.Genova || {}
         sucursal: decodeURIComponent(el.getAttribute('data-sucursal') || ''),
         email: decodeURIComponent(el.getAttribute('data-email') || ''),
         estado: decodeURIComponent(el.getAttribute('data-estado') || ''),
+        rol: decodeURIComponent(el.getAttribute('data-rol') || 'franquiciado'),
       }
       state.modal = 'edit-usuario'
     },
@@ -300,7 +374,7 @@ window.Genova = window.Genova || {}
       state.modal = null; state.edit = null
       return api.update('usuarios', row, {
         nombre: nombre, iniciales: val('gv-user-iniciales'), sucursal: val('gv-user-sucursal'),
-        email: val('gv-user-email'), estado: val('gv-user-estado'),
+        email: val('gv-user-email'), rol: val('gv-user-rol') || 'franquiciado', estado: val('gv-user-estado'),
       })
     },
 
@@ -444,7 +518,9 @@ window.Genova = window.Genova || {}
         state.view = 'denied'; render(); return
       }
       state.user = me
-      state.view = me.rol === 'admin' ? 'admin' : 'fran'
+      if (me.rol === 'comisionista') { state.view = 'admin'; state.selKind = 'comision' }
+      else if (me.rol === 'admin') { state.view = 'admin'; state.selKind = 'sucursal' }
+      else state.view = 'fran'
       state.aTab = 'resumen'; state.fTab = 'resumen'; state.branch = 0
       render()
     }).catch(function (e) {
