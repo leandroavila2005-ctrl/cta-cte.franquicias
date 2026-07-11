@@ -819,7 +819,7 @@ Genova.views = (function () {
   function overlay(titulo, saveAction, inner) {
     return `
     <div style="position:fixed; inset:0; background:rgba(43,27,18,0.45); display:flex; align-items:center; justify-content:center; z-index:100;">
-      <div style="width:440px; max-width:92vw; background:#FAF6F0; border-radius:16px; box-shadow:0 24px 64px rgba(43,27,18,0.4); padding:24px 26px; font-family:'Inter',sans-serif;">
+      <div style="width:440px; max-width:92vw; max-height:90vh; overflow-y:auto; background:#FAF6F0; border-radius:16px; box-shadow:0 24px 64px rgba(43,27,18,0.4); padding:24px 26px; font-family:'Inter',sans-serif;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
           <h2 style="font-family:'Playfair Display',serif; font-weight:700; font-size:20px;">${titulo}</h2>
           <button data-action="close-modal" style="background:none; border:none; font-size:20px; color:#6B5A4C; cursor:pointer; line-height:1;">✕</button>
@@ -836,12 +836,15 @@ Genova.views = (function () {
   function escAttr(s) {
     return String(s == null ? '' : s).replace(/"/g, '&quot;')
   }
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  }
   // Botones Editar / Eliminar de una fila (mismo look en admin y franquiciado).
   function rowBtns(entity, r) {
     var base = 'border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:\'Inter\',sans-serif; cursor:pointer;'
     var data = entity === 'anexo'
       ? `data-id="${r._row}" data-producto="${encodeURIComponent(r.producto)}" data-cantidad="${r.cantidad}" data-fecha="${r.fecha}"`
-      : `data-id="${r._row}" data-concepto="${encodeURIComponent(r.concepto)}" data-monto="${r.monto}" data-fecha="${r.fecha}"`
+      : `data-id="${r._row}" data-concepto="${encodeURIComponent(r.concepto)}" data-monto="${r.monto}" data-fecha="${r.fecha}" data-obs="${encodeURIComponent(r.observacion || '')}"`
     return `<button data-action="edit-${entity}" ${data} style="background:#fff; color:#6B5A4C; border:1px solid #E5DDD2; ${base}">Editar</button>
       <button data-action="del-${entity}" data-id="${r._row}" style="background:#fff; color:#B3261E; border:1px solid #E7C9C6; ${base}">Eliminar</button>`
   }
@@ -850,8 +853,9 @@ Genova.views = (function () {
     var e = state.edit || {}
     return overlay('Editar pago', 'save-edit-pago',
       campo('Concepto', `<input id="gv-pago-concepto" value="${escAttr(e.concepto)}" style="${inputBase}">`) +
-      campo('Monto', `<input id="gv-pago-monto" value="${e.monto || ''}" inputmode="numeric" style="${inputBase}">`) +
-      campo('Fecha (dd/mm/aaaa)', `<input id="gv-fecha" value="${e.fecha ? f.dmy(e.fecha) : ''}" placeholder="dd/mm/aaaa" inputmode="numeric" style="${inputBase}">`))
+      campo('Monto', `<input id="gv-pago-monto" value="${e.monto || ''}" data-num inputmode="decimal" style="${inputBase}">`) +
+      campo('Fecha (dd/mm/aaaa)', `<input id="gv-fecha" value="${e.fecha ? f.dmy(e.fecha) : ''}" placeholder="dd/mm/aaaa" inputmode="numeric" style="${inputBase}">`) +
+      campo('Observación', `<textarea id="gv-pago-obs" rows="2" placeholder="Opcional" style="${inputBase} resize:vertical;">${escHtml(e.observacion)}</textarea>`))
   }
 
   function adminModal(state, data) {
@@ -958,7 +962,8 @@ Genova.views = (function () {
     var hoyDDMM = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2)
     var montoFecha =
       campo('Monto', `<input id="gv-pago-monto" data-num inputmode="decimal" placeholder="0" style="${inputBase}">`) +
-      campo('Fecha (dd/mm)', `<input id="gv-fecha" value="${hoyDDMM}" placeholder="dd/mm" inputmode="numeric" style="${inputBase}">`)
+      campo('Fecha (dd/mm)', `<input id="gv-fecha" value="${hoyDDMM}" placeholder="dd/mm" inputmode="numeric" style="${inputBase}">`) +
+      campo('Observación', `<textarea id="gv-pago-obs" rows="2" placeholder="Opcional" style="${inputBase} resize:vertical;"></textarea>`)
 
     if (!cuentas || !cuentas.length) {
       return campo('Concepto', `<input id="gv-pago-concepto" placeholder="Ej: Transferencia" style="${inputBase}">`) + montoFecha

@@ -174,7 +174,7 @@ window.Genova = window.Genova || {}
       var fecha = isoFecha(val('gv-fecha'))
       return api.create('pagos', {
         sucursal: state.sucursalActual, mes: fecha.slice(0, 7),
-        concepto: concepto, monto: monto, estado: 'ok', fecha: fecha,
+        concepto: concepto, monto: monto, estado: 'ok', fecha: fecha, observacion: val('gv-pago-obs'),
       })
     },
 
@@ -387,7 +387,7 @@ window.Genova = window.Genova || {}
       var fecha = isoFecha(val('gv-fecha'))
       return api.create('pagos', {
         sucursal: (state.user && state.user.sucursal) || 'City Bell', mes: fecha.slice(0, 7),
-        concepto: concepto, monto: monto, estado: 'pending', fecha: fecha,
+        concepto: concepto, monto: monto, estado: 'pending', fecha: fecha, observacion: val('gv-pago-obs'),
       })
     },
 
@@ -434,6 +434,7 @@ window.Genova = window.Genova || {}
         concepto: decodeURIComponent(el.getAttribute('data-concepto') || ''),
         monto: el.getAttribute('data-monto'),
         fecha: el.getAttribute('data-fecha'),
+        observacion: decodeURIComponent(el.getAttribute('data-obs') || ''),
       }
       state.modal = 'edit-pago'
     },
@@ -450,7 +451,7 @@ window.Genova = window.Genova || {}
       var row = state.edit.row
       state.modal = null; state.edit = null
       var fecha = isoFecha(val('gv-fecha'))
-      return api.update('pagos', row, { concepto: concepto, monto: monto, mes: fecha.slice(0, 7), fecha: fecha })
+      return api.update('pagos', row, { concepto: concepto, monto: monto, mes: fecha.slice(0, 7), fecha: fecha, observacion: val('gv-pago-obs') })
     },
   }
 
