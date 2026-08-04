@@ -17,7 +17,8 @@ window.Genova = window.Genova || {}
 Genova.config = {
   DEMO_MODE: false,
   API_URL: 'https://script.google.com/macros/s/AKfycbxBOtv1IXOEnl8oTxWR3QVibrtyKFZXDJJQm0NwAXUVbiYQ0Gir84XzCZy4Qt7ve3Xp0A/exec',
-  MES_ACTUAL: '2026-07', // mes en curso (formato AAAA-MM)
+  // mes en curso (formato AAAA-MM). Se calcula del reloj real: se actualiza solo cada mes.
+  MES_ACTUAL: (function () { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) })(),
 
   // OAuth 2.0 Client ID (tipo "Aplicación web") de Google Cloud Console.
   // Debe coincidir con CONFIG.OAUTH_CLIENT_ID en backend/Code.gs.
