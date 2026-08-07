@@ -262,7 +262,7 @@ Genova.views = (function () {
   }
 
   function franAnexos(d, rows) {
-    var lista = rows.map(function (a) {
+    var lista = (rows || []).map(function (a) {
       var detail = a.cantidad + ' ' + f.unidadLarga(a.unidad) + ' · ' + money(a.precioUnit) + ' c/u'
       return `<div style="display:flex; align-items:center; gap:12px; padding:13px 16px; border-bottom:1px solid #F0EAE0;">
         <div style="flex:0 0 auto; width:40px; text-align:center;">
@@ -294,7 +294,7 @@ Genova.views = (function () {
   }
 
   function franPagos(d, rows, ro) {
-    var lista = rows.map(function (p) {
+    var lista = (rows || []).map(function (p) {
       var b = badgePago(p.estado)
       return `<div style="display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #F0EAE0;">
         <div style="flex:0 0 auto; width:40px; text-align:center;">
@@ -361,7 +361,7 @@ Genova.views = (function () {
         <span style="flex:1 1 auto; font-size:13px; font-weight:${active ? 600 : 500}; color:${active ? '#C8102E' : '#2B1B12'};">${nombre}</span>
       </button>`
     }
-    var branches = data.sucursales.map(function (b, i) {
+    var branches = (data.sucursales || []).map(function (b, i) {
       return pill('branch', state.selKind === 'sucursal' && i === state.branch, b.nombre, i)
     }).join('')
     var mayoristas = (data.mayoristas || []).map(function (b, i) {
@@ -464,7 +464,6 @@ Genova.views = (function () {
             <input id="gv-venta" value="${f.plain(d.venta)}" data-num inputmode="decimal" style="flex:1 1 auto; border:none; outline:none; padding:13px 14px 13px 0; font-size:20px; font-weight:700; font-family:'Inter',sans-serif; font-variant-numeric:tabular-nums; background:transparent;">
             <button data-action="save-venta" style="margin:6px; background:#C8102E; color:#fff; border:none; border-radius:6px; padding:9px 18px; font-size:13px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Guardar</button>
           </div>
-          <div style="font-size:12px; color:#6B5A4C; margin-top:10px;">Última carga: hoy, 09:41 · Roberto G.</div>
         </div>
         <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); padding:26px 24px; border-left:4px solid ${p.accent};">
           <div style="font-size:13px; color:#6B5A4C; font-weight:500;">${p.saldoLabel}</div>
@@ -495,7 +494,7 @@ Genova.views = (function () {
 
   function adminAnexos(d, rows) {
     var cols = '104px 1fr 100px 120px 120px 160px'
-    var body = rows.map(function (r) {
+    var body = (rows || []).map(function (r) {
       return `<div class="gv-list-row" style="display:grid; grid-template-columns:${cols}; gap:14px; padding:14px 20px; border-bottom:1px solid #F0EAE0; align-items:center;">
         <span class="gv-cell" data-label="Fecha" style="font-size:14px; font-variant-numeric:tabular-nums;">${f.dmy(r.fecha)}</span>
         <span class="gv-cell" data-label="Producto" style="font-size:14px; font-weight:600;">${r.producto}</span>
@@ -530,7 +529,7 @@ Genova.views = (function () {
     var pendText = d.pendCount > 0 ? (d.pendCount + (d.pendCount === 1 ? ' pago' : ' pagos') + ' esperando confirmación') : 'Sin pagos pendientes'
     var statLabel = 'font-size:12px; color:#6B5A4C; font-weight:600; text-transform:uppercase;'
 
-    var body = rows.map(function (r) {
+    var body = (rows || []).map(function (r) {
       var b = badgePago(r.estado)
       var verificar = r.estado === 'pending'
         ? `<button data-action="verify-pago" data-id="${r._row}" style="background:#2E7D4F; color:#fff; border:none; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Verificar</button>`
