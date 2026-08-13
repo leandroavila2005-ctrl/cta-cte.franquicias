@@ -105,8 +105,32 @@ Genova.api = (function () {
         .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]) })
         .join('&')
     }
+    // Apps Script a veces devuelve una página HTML de error/redirect en vez de
+    // ejecutar el script (hipo temporal de Google). En ese caso r.json() rompe con
+    // "Unexpected token '<'". Leemos como texto y, si no es JSON válido, reintentamos
+    // una vez (solo en lecturas: reintentar una escritura podría duplicar la carga).
+    function esEscritura(params) {
+      return params.action === 'create' || params.action === 'update' || params.action === 'remove'
+    }
+    function pedir(params) {
+      return fetch(cfg.API_URL + '?' + qs(Object.assign({ token: tok(), _: Date.now() }, params)))
+        .then(function (r) { return r.text() })
+        .then(function (t) {
+          try { return JSON.parse(t) }
+          catch (e) { var err = new Error('respuesta-no-json'); err.noJson = true; throw err }
+        })
+    }
     function get(params) {
-      return fetch(cfg.API_URL + '?' + qs(Object.assign({ token: tok(), _: Date.now() }, params))).then(function (r) { return r.json() })
+      return pedir(params).catch(function (e) {
+        if (!e || !e.noJson || esEscritura(params)) throw e
+        // reintento único tras una pausa breve
+        return new Promise(function (res) { setTimeout(res, 800) }).then(function () {
+          return pedir(params).catch(function (e2) {
+            if (e2 && e2.noJson) throw new Error('El servidor tardó o devolvió una respuesta inválida (error temporal de Google). Reintentá en unos segundos.')
+            throw e2
+          })
+        })
+      })
     }
     function post(body) {
       return fetch(cfg.API_URL, {
