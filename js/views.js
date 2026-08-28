@@ -342,6 +342,7 @@ Genova.views = (function () {
     var p = state.selKind === 'sucursal' ? present(d) : null
     var main
     if (state.selKind === 'comision') main = comisionResumen(state, data)
+    else if (state.selKind === 'precios') main = preciosMain()
     else if (state.selKind === 'mayorista') main = mayoristaView(state, data, ro)
     else main = state.aTab === 'resumen' ? adminResumen(d, p)
       : state.aTab === 'anexos' ? adminAnexos(d, data.anexos)
@@ -368,9 +369,11 @@ Genova.views = (function () {
       return pill('branch-may', state.selKind === 'mayorista' && i === state.mayorista, b.nombre, i)
     }).join('') || `<div style="font-size:12px; color:#A89684; padding:6px 12px;">Sin mayoristas cargados</div>`
     var resumenItem = `<button data-action="sel-comision" style="width:100%; display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:8px; border:none; background:${state.selKind === 'comision' ? '#FBEAE8' : 'transparent'}; color:${state.selKind === 'comision' ? '#C8102E' : '#6B5A4C'}; font-size:14px; font-weight:${state.selKind === 'comision' ? 600 : 500}; cursor:pointer; text-align:left; margin-bottom:2px; font-family:'Inter',sans-serif;"><span style="width:18px; height:18px; display:inline-flex;">${icon('resumen', 18)}</span>Resumen mensual</button>`
+    var tagSvg = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>`
+    var preciosItem = `<button data-action="sel-precios" style="width:100%; display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:8px; border:none; background:${state.selKind === 'precios' ? '#FBEAE8' : 'transparent'}; color:${state.selKind === 'precios' ? '#C8102E' : '#6B5A4C'}; font-size:14px; font-weight:${state.selKind === 'precios' ? 600 : 500}; cursor:pointer; text-align:left; margin-bottom:2px; font-family:'Inter',sans-serif;"><span style="width:18px; height:18px; display:inline-flex;">${tagSvg}</span>Precios</button>`
 
     var titulos = { resumen: 'Resumen', anexos: 'Productos anexos', pagos: 'Pagos', config: 'Configuración' }
-    var tituloMobile = state.selKind === 'comision' ? 'Resumen mensual' : (state.selKind === 'mayorista' ? 'Mayorista' : (titulos[state.aTab] || ''))
+    var tituloMobile = state.selKind === 'comision' ? 'Resumen mensual' : (state.selKind === 'precios' ? 'Precios' : (state.selKind === 'mayorista' ? 'Mayorista' : (titulos[state.aTab] || '')))
     var mobileBar = `<div class="gv-mobilebar" style="align-items:center; gap:12px; padding:2px 2px 14px; margin-bottom:6px; border-bottom:1px solid #F0EAE0;">
       <button data-action="toggle-nav" aria-label="Menú" style="background:#fff; border:1px solid #E5DDD2; border-radius:8px; width:42px; height:42px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#2B1B12; flex:0 0 auto;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg></button>
       <span style="font-family:'Playfair Display',serif; font-weight:700; font-size:18px;">${tituloMobile}</span>
@@ -394,6 +397,7 @@ Genova.views = (function () {
         <button data-action="view-as-fran" style="width:100%; margin-top:8px; display:flex; align-items:center; justify-content:center; gap:8px; padding:9px 12px; border-radius:8px; border:1px dashed #C8B7A6; background:transparent; color:#6B5A4C; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">${icon('home', 15)} Ver como franquiciado</button>`}
         <div style="font-size:10px; font-weight:700; letter-spacing:.08em; color:#A89684; text-transform:uppercase; padding:22px 8px 6px;">Mayoristas</div>
         ${resumenItem}
+        ${preciosItem}
         ${mayoristas}
         <div style="margin-top:auto; display:flex; align-items:center; gap:10px; padding:10px 8px; border-top:1px solid #F0EAE0;">
           <div style="width:32px; height:32px; border-radius:50%; background:#2B1B12; color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;">${(state.user && state.user.iniciales) || '··'}</div>
@@ -993,5 +997,51 @@ Genova.views = (function () {
     return overlay('Registrar un pago', 'save-pago-fran', pagoFields((data && data.alias) || []))
   }
 
-  return { login: login, booting: booting, denied: denied, franchisee: franchisee, admin: admin, adminModal: adminModal, franModal: franModal }
+  // ============================ PRECIOS (lista independiente, sin backend) ============================
+  // Se guarda en localStorage del navegador. No se conecta con ninguna cuenta ni hoja.
+  function preciosGuardados() {
+    try { return JSON.parse(localStorage.getItem('gv_precios') || '{}') || {} } catch (e) { return {} }
+  }
+  var rowInput = 'width:100%; box-sizing:border-box; border:1px solid #E5DDD2; border-radius:8px; padding:9px 11px; font-size:14px; font-family:\'Inter\',sans-serif; background:#fff; outline:none;'
+
+  function precioRow(p, v) {
+    return `<div class="gv-precio-row gv-list-row" style="display:grid; grid-template-columns:1fr 170px 42px; gap:12px; padding:10px 16px; border-bottom:1px solid #F0EAE0; align-items:center;">
+      <input class="gv-precio-prod" value="${escAttr(p || '')}" placeholder="Nombre del producto" style="${rowInput}">
+      <input class="gv-precio-val" data-num inputmode="decimal" value="${escAttr(v || '')}" placeholder="0,00" style="${rowInput} text-align:right; font-variant-numeric:tabular-nums;">
+      <button data-action="precios-del" title="Quitar" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; background:#FBEAE8; color:#C8102E; border:none; border-radius:8px; cursor:pointer;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+    </div>`
+  }
+
+  function preciosMain() {
+    var g = preciosGuardados()
+    var items = Array.isArray(g.items) ? g.items : []
+    var filas = items.map(function (it) { return precioRow(it.p, it.v) }).join('')
+    var vacio = 'display:' + (items.length ? 'none' : 'block')
+    return `
+    <div class="gv-head" style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:20px; gap:16px; flex-wrap:wrap;">
+      <div>
+        <h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Precios</h1>
+        <div style="font-size:13px; color:#6B5A4C; margin-top:6px; max-width:520px;">Lista independiente para armar precios por cliente. No se conecta con ninguna cuenta ni sucursal. Se guarda en este navegador.</div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button data-action="precios-add" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Insertar producto</button>
+        <button data-action="precios-pdf" style="background:#fff; color:#2B1B12; border:1px solid #E5DDD2; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Exportar PDF</button>
+      </div>
+    </div>
+    <div style="max-width:660px;">
+      <div style="margin-bottom:14px;">
+        <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Lista / Cliente</label>
+        <input id="gv-precios-titulo" value="${escAttr(g.titulo || '')}" placeholder="Ej: Restaurante La Plata" style="${inputBase}">
+      </div>
+      <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
+        <div class="gv-list-head" style="display:grid; grid-template-columns:1fr 170px 42px; gap:12px; padding:12px 16px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
+          ${th('Producto')}${th('Precio', true)}<span></span>
+        </div>
+        <div id="gv-precios-list">${filas}</div>
+        <div id="gv-precios-empty" style="${vacio}; padding:26px 16px; text-align:center; font-size:13px; color:#A89684;">Sin productos. Tocá “Insertar producto”.</div>
+      </div>
+    </div>`
+  }
+
+  return { login: login, booting: booting, denied: denied, franchisee: franchisee, admin: admin, adminModal: adminModal, franModal: franModal, precioRow: precioRow }
 })()

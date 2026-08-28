@@ -51,8 +51,10 @@ window.Genova = window.Genova || {}
     }
 
     // admin — una sola llamada trae todo lo de la pantalla
+    // 'precios' es una lista local (sin backend); pedimos como 'sucursal' solo para poblar el sidebar.
+    var kind = state.selKind === 'precios' ? 'sucursal' : state.selKind
     var idx = state.selKind === 'mayorista' ? state.mayorista : state.branch
-    var res = await api.panelAdmin(state.selKind, idx, state.mes)
+    var res = await api.panelAdmin(kind, idx, state.mes)
     state.sucursalActual = res.sucursalActual || ''
     state.mayoristaActual = res.mayoristaActual || null
     root.innerHTML = views.admin(state, res) +
@@ -108,6 +110,50 @@ window.Genova = window.Genova || {}
     return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2)
   }
 
+  // --- Precios: lista local en localStorage (sin backend) ---
+  function leerPreciosDom() {
+    var titulo = val('gv-precios-titulo')
+    var items = []
+    var filas = document.querySelectorAll('#gv-precios-list .gv-precio-row')
+    for (var i = 0; i < filas.length; i++) {
+      var p = (filas[i].querySelector('.gv-precio-prod') || {}).value || ''
+      var v = (filas[i].querySelector('.gv-precio-val') || {}).value || ''
+      if (p.trim() === '' && v.trim() === '') continue
+      items.push({ p: p, v: v })
+    }
+    return { titulo: titulo, items: items }
+  }
+  function persistPrecios() {
+    try { localStorage.setItem('gv_precios', JSON.stringify(leerPreciosDom())) } catch (e) {}
+  }
+  function escHtmlPdf(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  }
+  function exportarPreciosPdf() {
+    var d = leerPreciosDom()
+    var hoy = new Date()
+    var fechaTxt = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '/' + hoy.getFullYear()
+    var filas = d.items.map(function (it) {
+      return '<tr><td>' + escHtmlPdf(it.p) + '</td><td class="pr">$ ' + escHtmlPdf(it.v) + '</td></tr>'
+    }).join('') || '<tr><td colspan="2" style="color:#888;">Sin productos</td></tr>'
+    var html = '<!doctype html><html><head><meta charset="utf-8"><title>Lista de precios</title>' +
+      '<style>body{font-family:Arial,Helvetica,sans-serif;color:#2B1B12;padding:32px;}' +
+      'h1{font-size:22px;margin:0 0 2px;}h2{font-size:15px;font-weight:normal;color:#6B5A4C;margin:0 0 4px;}' +
+      '.fecha{font-size:12px;color:#888;margin-bottom:18px;}' +
+      'table{width:100%;border-collapse:collapse;}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid #e5ddd2;font-size:14px;}' +
+      'th{background:#faf6f0;font-size:12px;text-transform:uppercase;color:#6B5A4C;}.pr{text-align:right;font-variant-numeric:tabular-nums;}' +
+      '</style></head><body>' +
+      '<h1>Lista de precios</h1>' + (d.titulo ? '<h2>' + escHtmlPdf(d.titulo) + '</h2>' : '') +
+      '<div class="fecha">' + fechaTxt + '</div>' +
+      '<table><thead><tr><th>Producto</th><th class="pr">Precio</th></tr></thead><tbody>' + filas + '</tbody></table>' +
+      '</body></html>'
+    var w = window.open('', '_blank')
+    if (!w) { window.alert('Permití las ventanas emergentes para exportar el PDF.'); return }
+    w.document.open(); w.document.write(html); w.document.close()
+    w.focus()
+    setTimeout(function () { w.print() }, 300)
+  }
+
   // --- Navegación por delegación de eventos (un solo listener) ---
   var actions = {
     'login-admin': function () { state.view = 'admin'; state.aTab = 'resumen'; state.modal = null },
@@ -131,6 +177,31 @@ window.Genova = window.Genova || {}
     'branch': function (el) { state.selKind = 'sucursal'; state.branch = parseInt(el.getAttribute('data-index'), 10); state.aTab = 'resumen' },
     'branch-may': function (el) { state.selKind = 'mayorista'; state.mayorista = parseInt(el.getAttribute('data-index'), 10) },
     'sel-comision': function () { state.selKind = 'comision' },
+    'sel-precios': function () { state.selKind = 'precios' },
+
+    // --- Precios: lista local (localStorage), sin backend, sin re-render ---
+    'precios-add': function () {
+      var lista = document.getElementById('gv-precios-list')
+      if (!lista) return false
+      lista.insertAdjacentHTML('beforeend', views.precioRow('', ''))
+      var vacio = document.getElementById('gv-precios-empty')
+      if (vacio) vacio.style.display = 'none'
+      var nuevo = lista.lastElementChild
+      var inp = nuevo && nuevo.querySelector('.gv-precio-prod')
+      if (inp) inp.focus()
+      persistPrecios()
+      return false
+    },
+    'precios-del': function (el) {
+      var fila = el.closest('.gv-precio-row')
+      if (fila) fila.parentNode.removeChild(fila)
+      var lista = document.getElementById('gv-precios-list')
+      var vacio = document.getElementById('gv-precios-empty')
+      if (vacio && lista && lista.children.length === 0) vacio.style.display = 'block'
+      persistPrecios()
+      return false
+    },
+    'precios-pdf': function () { exportarPreciosPdf(); return false },
     'toggle-det': function () { state.det = !state.det },
     'prev-month': function () { state.mes = correrMes(state.mes, -1) },
     'next-month': function () { if (state.mes < cfg.MES_ACTUAL) state.mes = correrMes(state.mes, 1) },
@@ -507,6 +578,7 @@ window.Genova = window.Genova || {}
   })
   root.addEventListener('input', function (e) {
     if (esNumInput(e.target)) reformatNum(e.target)
+    if (e.target.id === 'gv-precios-titulo' || (e.target.closest && e.target.closest('#gv-precios-list'))) persistPrecios()
   })
 
   // --- Arranque / autenticación ---
