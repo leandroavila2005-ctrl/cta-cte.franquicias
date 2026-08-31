@@ -110,32 +110,36 @@ window.Genova = window.Genova || {}
     return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2)
   }
 
-  // --- Precios: lista local en localStorage (sin backend) ---
-  function leerPreciosDom() {
-    var titulo = val('gv-precios-titulo')
+  // --- Precios: lista local en localStorage (sin backend), una por cliente ---
+  function leerPreciosItems() {
     var items = []
     var filas = document.querySelectorAll('#gv-precios-list .gv-precio-row')
     for (var i = 0; i < filas.length; i++) {
       var p = (filas[i].querySelector('.gv-precio-prod') || {}).value || ''
+      var u = (filas[i].querySelector('.gv-precio-uni') || {}).value || ''
       var v = (filas[i].querySelector('.gv-precio-val') || {}).value || ''
-      if (p.trim() === '' && v.trim() === '') continue
-      items.push({ p: p, v: v })
+      if (p.trim() === '' && u.trim() === '' && v.trim() === '') continue
+      items.push({ p: p, u: u, v: v })
     }
-    return { titulo: titulo, items: items }
+    return items
   }
   function persistPrecios() {
-    try { localStorage.setItem('gv_precios', JSON.stringify(leerPreciosDom())) } catch (e) {}
+    var s = views.preciosStore()
+    if (!s.actual) return // sin cliente seleccionado no hay dónde guardar
+    s.clientes[s.actual] = leerPreciosItems()
+    try { localStorage.setItem('gv_precios', JSON.stringify(s)) } catch (e) {}
   }
   function escHtmlPdf(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   }
   function exportarPreciosPdf() {
-    var d = leerPreciosDom()
+    var cliente = views.preciosStore().actual || ''
+    var items = leerPreciosItems()
     var hoy = new Date()
     var fechaTxt = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '/' + hoy.getFullYear()
-    var filas = d.items.map(function (it) {
-      return '<tr><td>' + escHtmlPdf(it.p) + '</td><td class="pr">$ ' + escHtmlPdf(it.v) + '</td></tr>'
-    }).join('') || '<tr><td colspan="2" style="color:#888;">Sin productos</td></tr>'
+    var filas = items.map(function (it) {
+      return '<tr><td>' + escHtmlPdf(it.p) + '</td><td>' + escHtmlPdf(it.u) + '</td><td class="pr">$ ' + escHtmlPdf(it.v) + '</td></tr>'
+    }).join('') || '<tr><td colspan="3" style="color:#888;">Sin productos</td></tr>'
     var html = '<!doctype html><html><head><meta charset="utf-8"><title>Lista de precios</title>' +
       '<style>body{font-family:Arial,Helvetica,sans-serif;color:#2B1B12;padding:32px;}' +
       'h1{font-size:22px;margin:0 0 2px;}h2{font-size:15px;font-weight:normal;color:#6B5A4C;margin:0 0 4px;}' +
@@ -143,9 +147,9 @@ window.Genova = window.Genova || {}
       'table{width:100%;border-collapse:collapse;}th,td{text-align:left;padding:9px 8px;border-bottom:1px solid #e5ddd2;font-size:14px;}' +
       'th{background:#faf6f0;font-size:12px;text-transform:uppercase;color:#6B5A4C;}.pr{text-align:right;font-variant-numeric:tabular-nums;}' +
       '</style></head><body>' +
-      '<h1>Lista de precios</h1>' + (d.titulo ? '<h2>' + escHtmlPdf(d.titulo) + '</h2>' : '') +
+      '<h1>Lista de precios</h1>' + (cliente ? '<h2>' + escHtmlPdf(cliente) + '</h2>' : '') +
       '<div class="fecha">' + fechaTxt + '</div>' +
-      '<table><thead><tr><th>Producto</th><th class="pr">Precio</th></tr></thead><tbody>' + filas + '</tbody></table>' +
+      '<table><thead><tr><th>Producto</th><th>Un. de medida</th><th class="pr">Precio</th></tr></thead><tbody>' + filas + '</tbody></table>' +
       '</body></html>'
     var w = window.open('', '_blank')
     if (!w) { window.alert('Permití las ventanas emergentes para exportar el PDF.'); return }
@@ -179,11 +183,25 @@ window.Genova = window.Genova || {}
     'sel-comision': function () { state.selKind = 'comision' },
     'sel-precios': function () { state.selKind = 'precios' },
 
+    // Cambiar de cliente (o crear uno) — guarda el actual y re-renderiza con el elegido.
+    'precios-cliente': function (el) {
+      persistPrecios() // guarda lo que hay en pantalla para el cliente actual
+      var s = views.preciosStore()
+      if (el.value === '__nuevo__') {
+        var nombre = (window.prompt('Nombre del nuevo cliente:') || '').trim()
+        if (nombre) { if (!s.clientes[nombre]) s.clientes[nombre] = []; s.actual = nombre }
+      } else {
+        s.actual = el.value
+      }
+      try { localStorage.setItem('gv_precios', JSON.stringify(s)) } catch (e) {}
+      // sin return false → re-render para cargar el cliente elegido
+    },
+
     // --- Precios: lista local (localStorage), sin backend, sin re-render ---
     'precios-add': function () {
       var lista = document.getElementById('gv-precios-list')
       if (!lista) return false
-      lista.insertAdjacentHTML('beforeend', views.precioRow('', ''))
+      lista.insertAdjacentHTML('beforeend', views.precioRow('', '', ''))
       var vacio = document.getElementById('gv-precios-empty')
       if (vacio) vacio.style.display = 'none'
       var nuevo = lista.lastElementChild
@@ -578,7 +596,7 @@ window.Genova = window.Genova || {}
   })
   root.addEventListener('input', function (e) {
     if (esNumInput(e.target)) reformatNum(e.target)
-    if (e.target.id === 'gv-precios-titulo' || (e.target.closest && e.target.closest('#gv-precios-list'))) persistPrecios()
+    if (e.target.closest && e.target.closest('#gv-precios-list')) persistPrecios()
   })
 
   // --- Arranque / autenticación ---

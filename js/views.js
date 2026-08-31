@@ -342,7 +342,7 @@ Genova.views = (function () {
     var p = state.selKind === 'sucursal' ? present(d) : null
     var main
     if (state.selKind === 'comision') main = comisionResumen(state, data)
-    else if (state.selKind === 'precios') main = preciosMain()
+    else if (state.selKind === 'precios') main = preciosMain(data.mayoristas)
     else if (state.selKind === 'mayorista') main = mayoristaView(state, data, ro)
     else main = state.aTab === 'resumen' ? adminResumen(d, p)
       : state.aTab === 'anexos' ? adminAnexos(d, data.anexos)
@@ -999,43 +999,68 @@ Genova.views = (function () {
 
   // ============================ PRECIOS (lista independiente, sin backend) ============================
   // Se guarda en localStorage del navegador. No se conecta con ninguna cuenta ni hoja.
-  function preciosGuardados() {
-    try { return JSON.parse(localStorage.getItem('gv_precios') || '{}') || {} } catch (e) { return {} }
+  // Lee/normaliza el almacén de precios. Estructura: { actual, clientes: { nombre: [ {p,u,v} ] } }.
+  function preciosStore() {
+    var s
+    try { s = JSON.parse(localStorage.getItem('gv_precios') || '{}') || {} } catch (e) { s = {} }
+    // migración del formato viejo { titulo, items:[{p,v}] }
+    if (s.items && !s.clientes) {
+      var nom = s.titulo || 'Cliente 1'
+      var cl = {}; cl[nom] = s.items.map(function (it) { return { p: it.p, u: it.u || '', v: it.v } })
+      s = { actual: nom, clientes: cl }
+    }
+    if (!s.clientes || typeof s.clientes !== 'object') s.clientes = {}
+    if (!s.actual) s.actual = ''
+    return s
   }
   var rowInput = 'width:100%; box-sizing:border-box; border:1px solid #E5DDD2; border-radius:8px; padding:9px 11px; font-size:14px; font-family:\'Inter\',sans-serif; background:#fff; outline:none;'
+  var preciosGrid = 'grid-template-columns:1fr 120px 150px 42px;'
 
-  function precioRow(p, v) {
-    return `<div class="gv-precio-row gv-list-row" style="display:grid; grid-template-columns:1fr 170px 42px; gap:12px; padding:10px 16px; border-bottom:1px solid #F0EAE0; align-items:center;">
+  function precioRow(p, u, v) {
+    return `<div class="gv-precio-row gv-list-row" style="display:grid; ${preciosGrid} gap:12px; padding:10px 16px; border-bottom:1px solid #F0EAE0; align-items:center;">
       <input class="gv-precio-prod" value="${escAttr(p || '')}" placeholder="Nombre del producto" style="${rowInput}">
+      <input class="gv-precio-uni" value="${escAttr(u || '')}" placeholder="kg, doc…" style="${rowInput}">
       <input class="gv-precio-val" data-num inputmode="decimal" value="${escAttr(v || '')}" placeholder="0,00" style="${rowInput} text-align:right; font-variant-numeric:tabular-nums;">
       <button data-action="precios-del" title="Quitar" style="width:34px; height:34px; display:inline-flex; align-items:center; justify-content:center; background:#FBEAE8; color:#C8102E; border:none; border-radius:8px; cursor:pointer;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
     </div>`
   }
 
-  function preciosMain() {
-    var g = preciosGuardados()
-    var items = Array.isArray(g.items) ? g.items : []
-    var filas = items.map(function (it) { return precioRow(it.p, it.v) }).join('')
+  function preciosMain(mayoristas) {
+    var s = preciosStore()
+    // El desplegable arranca con los mayoristas y suma los clientes creados a mano.
+    var mayNames = (mayoristas || []).map(function (m) { return m.nombre }).filter(Boolean)
+    var extra = Object.keys(s.clientes).filter(function (n) { return mayNames.indexOf(n) === -1 })
+    var names = mayNames.concat(extra)
+    var actual = (s.actual && names.indexOf(s.actual) > -1) ? s.actual : (names[0] || '')
+    if (actual !== s.actual) { s.actual = actual; try { localStorage.setItem('gv_precios', JSON.stringify(s)) } catch (e) {} }
+    var items = s.clientes[actual] || []
+    var filas = items.map(function (it) { return precioRow(it.p, it.u, it.v) }).join('')
     var vacio = 'display:' + (items.length ? 'none' : 'block')
+    var opts = names.map(function (n) {
+      return `<option value="${escAttr(n)}"${n === actual ? ' selected' : ''}>${n}</option>`
+    }).join('')
     return `
     <div class="gv-head" style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:20px; gap:16px; flex-wrap:wrap;">
       <div>
         <h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Precios</h1>
-        <div style="font-size:13px; color:#6B5A4C; margin-top:6px; max-width:520px;">Lista independiente para armar precios por cliente. No se conecta con ninguna cuenta ni sucursal. Se guarda en este navegador.</div>
+        <div style="font-size:13px; color:#6B5A4C; margin-top:6px; max-width:520px;">Lista de precios por cliente. No se conecta con ninguna cuenta ni sucursal. Se guarda en este navegador.</div>
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <button data-action="precios-add" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Insertar producto</button>
         <button data-action="precios-pdf" style="background:#fff; color:#2B1B12; border:1px solid #E5DDD2; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Exportar PDF</button>
       </div>
     </div>
-    <div style="max-width:660px;">
+    <div style="max-width:720px;">
       <div style="margin-bottom:14px;">
-        <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Lista / Cliente</label>
-        <input id="gv-precios-titulo" value="${escAttr(g.titulo || '')}" placeholder="Ej: Restaurante La Plata" style="${inputBase}">
+        <label style="font-size:13px; font-weight:600; display:block; margin-bottom:6px;">Cliente</label>
+        <select id="gv-precios-cliente" data-action="precios-cliente" style="${inputBase}">
+          ${opts}
+          <option value="__nuevo__">+ Nuevo cliente…</option>
+        </select>
       </div>
       <div style="background:#FFFFFF; border-radius:8px; box-shadow:0 2px 8px rgba(43,27,18,0.08); overflow:hidden;">
-        <div class="gv-list-head" style="display:grid; grid-template-columns:1fr 170px 42px; gap:12px; padding:12px 16px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
-          ${th('Producto')}${th('Precio', true)}<span></span>
+        <div class="gv-list-head" style="display:grid; ${preciosGrid} gap:12px; padding:12px 16px; background:#FAF6F0; border-bottom:1px solid #F0EAE0;">
+          ${th('Producto')}${th('Un. de medida')}${th('Precio', true)}<span></span>
         </div>
         <div id="gv-precios-list">${filas}</div>
         <div id="gv-precios-empty" style="${vacio}; padding:26px 16px; text-align:center; font-size:13px; color:#A89684;">Sin productos. Tocá “Insertar producto”.</div>
@@ -1043,5 +1068,5 @@ Genova.views = (function () {
     </div>`
   }
 
-  return { login: login, booting: booting, denied: denied, franchisee: franchisee, admin: admin, adminModal: adminModal, franModal: franModal, precioRow: precioRow }
+  return { login: login, booting: booting, denied: denied, franchisee: franchisee, admin: admin, adminModal: adminModal, franModal: franModal, precioRow: precioRow, preciosStore: preciosStore }
 })()
