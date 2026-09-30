@@ -82,6 +82,7 @@ Genova.api = (function () {
       })
     }
     function panelComision() { return Promise.resolve({ mayoristas: [], facturas: [] }) }
+    function guardarPrecios() { return Promise.resolve({ ok: true }) }
     function panelFran(sucursal, mes) {
       return Promise.all([
         dashboard(sucursal, mes),
@@ -90,7 +91,7 @@ Genova.api = (function () {
       ]).then(function (r) { return { dash: r[0], anexos: r[1], pagos: r[2] } })
     }
 
-    return { me: me, panelAdmin: panelAdmin, panelFran: panelFran, panelComision: panelComision, list: list, dashboard: dashboard, create: create, update: update, remove: remove }
+    return { me: me, panelAdmin: panelAdmin, panelFran: panelFran, panelComision: panelComision, guardarPrecios: guardarPrecios, list: list, dashboard: dashboard, create: create, update: update, remove: remove }
   }
 
   // ============================ MODO REAL ============================
@@ -153,6 +154,9 @@ Genova.api = (function () {
       },
       panelComision: function (mes) {
         return get({ action: 'panelComision', mes: mes })
+      },
+      guardarPrecios: function (cliente, items) {
+        return get({ action: 'guardarPrecios', cliente: cliente, data: JSON.stringify(items) })
       },
       list: function (entidad, filtros) {
         return get(Object.assign({ action: 'list', entity: entidad }, filtros || []))

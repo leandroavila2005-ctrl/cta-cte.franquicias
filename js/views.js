@@ -342,7 +342,7 @@ Genova.views = (function () {
     var p = state.selKind === 'sucursal' ? present(d) : null
     var main
     if (state.selKind === 'comision') main = comisionResumen(state, data)
-    else if (state.selKind === 'precios') main = preciosMain(data.mayoristas)
+    else if (state.selKind === 'precios') main = preciosMain(state, data.mayoristas, data.precios)
     else if (state.selKind === 'mayorista') main = mayoristaView(state, data, ro)
     else main = state.aTab === 'resumen' ? adminResumen(d, p)
       : state.aTab === 'anexos' ? adminAnexos(d, data.anexos)
@@ -997,21 +997,21 @@ Genova.views = (function () {
     return overlay('Registrar un pago', 'save-pago-fran', pagoFields((data && data.alias) || []))
   }
 
-  // ============================ PRECIOS (lista independiente, sin backend) ============================
-  // Se guarda en localStorage del navegador. No se conecta con ninguna cuenta ni hoja.
-  // Lee/normaliza el almacén de precios. Estructura: { actual, clientes: { nombre: [ {p,u,v} ] } }.
-  function preciosStore() {
-    var s
-    try { s = JSON.parse(localStorage.getItem('gv_precios') || '{}') || {} } catch (e) { s = {} }
-    // migración del formato viejo { titulo, items:[{p,v}] }
-    if (s.items && !s.clientes) {
-      var nom = s.titulo || 'Cliente 1'
-      var cl = {}; cl[nom] = s.items.map(function (it) { return { p: it.p, u: it.u || '', v: it.v } })
-      s = { actual: nom, clientes: cl }
-    }
-    if (!s.clientes || typeof s.clientes !== 'object') s.clientes = {}
-    if (!s.actual) s.actual = ''
-    return s
+  // ============================ PRECIOS (guardado en la planilla) ============================
+  // Lista de precios por cliente/mayorista. Se guarda en la hoja Precios (cualquier dispositivo).
+  // Nombres del desplegable: mayoristas + clientes con precios cargados + el que se esté creando.
+  function preciosNames(mayoristas, precios, sel) {
+    var names = []
+    function add(n) { if (n && names.indexOf(n) === -1) names.push(n) }
+    ;(mayoristas || []).forEach(function (m) { add(m.nombre) })
+    ;(precios || []).forEach(function (r) { add(r.cliente) })
+    add(sel)
+    return names
+  }
+  function preciosResolve(state, mayoristas, precios) {
+    var names = preciosNames(mayoristas, precios, state.precliente)
+    var sel = state.precliente || ''
+    return (sel && names.indexOf(sel) > -1) ? sel : (names[0] || '')
   }
   var rowInput = 'width:100%; box-sizing:border-box; border:1px solid #E5DDD2; border-radius:8px; padding:9px 11px; font-size:14px; font-family:\'Inter\',sans-serif; background:#fff; outline:none;'
   var preciosGrid = 'grid-template-columns:1fr 120px 150px 42px;'
@@ -1025,16 +1025,12 @@ Genova.views = (function () {
     </div>`
   }
 
-  function preciosMain(mayoristas) {
-    var s = preciosStore()
-    // El desplegable arranca con los mayoristas y suma los clientes creados a mano.
-    var mayNames = (mayoristas || []).map(function (m) { return m.nombre }).filter(Boolean)
-    var extra = Object.keys(s.clientes).filter(function (n) { return mayNames.indexOf(n) === -1 })
-    var names = mayNames.concat(extra)
-    var actual = (s.actual && names.indexOf(s.actual) > -1) ? s.actual : (names[0] || '')
-    if (actual !== s.actual) { s.actual = actual; try { localStorage.setItem('gv_precios', JSON.stringify(s)) } catch (e) {} }
-    var items = s.clientes[actual] || []
-    var filas = items.map(function (it) { return precioRow(it.p, it.u, it.v) }).join('')
+  function preciosMain(state, mayoristas, precios) {
+    precios = precios || []
+    var names = preciosNames(mayoristas, precios, state.precliente)
+    var actual = preciosResolve(state, mayoristas, precios)
+    var items = precios.filter(function (r) { return r.cliente === actual })
+    var filas = items.map(function (r) { return precioRow(r.producto, r.unidad, r.precio) }).join('')
     var vacio = 'display:' + (items.length ? 'none' : 'block')
     var opts = names.map(function (n) {
       return `<option value="${escAttr(n)}"${n === actual ? ' selected' : ''}>${n}</option>`
@@ -1043,10 +1039,11 @@ Genova.views = (function () {
     <div class="gv-head" style="display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:20px; gap:16px; flex-wrap:wrap;">
       <div>
         <h1 style="font-family:'Playfair Display',serif; font-weight:700; font-size:28px;">Precios</h1>
-        <div style="font-size:13px; color:#6B5A4C; margin-top:6px; max-width:520px;">Lista de precios por cliente. No se conecta con ninguna cuenta ni sucursal. Se guarda en este navegador.</div>
+        <div style="font-size:13px; color:#6B5A4C; margin-top:6px; max-width:520px;">Lista de precios por cliente/mayorista. Se guarda en la planilla (disponible desde cualquier dispositivo).</div>
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap;">
         <button data-action="precios-add" style="background:#C8102E; color:#fff; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; display:flex; align-items:center; gap:8px;">${icon('plus', 16, 2.4)} Insertar producto</button>
+        <button data-action="precios-guardar" id="gv-precios-guardar" disabled style="background:#EAE2D6; color:#A89684; border:none; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:default;">Guardar cambios</button>
         <button data-action="precios-pdf" style="background:#fff; color:#2B1B12; border:1px solid #E5DDD2; border-radius:8px; padding:11px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer;">Exportar PDF</button>
       </div>
     </div>
@@ -1068,5 +1065,5 @@ Genova.views = (function () {
     </div>`
   }
 
-  return { login: login, booting: booting, denied: denied, franchisee: franchisee, admin: admin, adminModal: adminModal, franModal: franModal, precioRow: precioRow, preciosStore: preciosStore }
+  return { login: login, booting: booting, denied: denied, franchisee: franchisee, admin: admin, adminModal: adminModal, franModal: franModal, precioRow: precioRow, preciosResolve: preciosResolve }
 })()

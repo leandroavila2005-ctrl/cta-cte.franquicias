@@ -24,7 +24,9 @@ window.Genova = window.Genova || {}
     deniedError: '', // mensaje de error crudo del backend (diagnóstico)
     mes: cfg.MES_ACTUAL, // mes que se está viendo (navegable hacia atrás)
     asFran: null, // admin mirando como franquiciado: nombre de sucursal (solo lectura)
+    precliente: '', // cliente/mayorista seleccionado en la solapa Precios
   }
+  var preciosDirty = false // hay cambios sin guardar en Precios
 
   var root = document.getElementById('app')
 
@@ -57,6 +59,7 @@ window.Genova = window.Genova || {}
     var res = await api.panelAdmin(kind, idx, state.mes)
     state.sucursalActual = res.sucursalActual || ''
     state.mayoristaActual = res.mayoristaActual || null
+    if (state.selKind === 'precios') { state.precliente = views.preciosResolve(state, res.mayoristas, res.precios); preciosDirty = false }
     root.innerHTML = views.admin(state, res) +
       views.adminModal(state, { sucursales: res.sucursales, catalogo: res.catalogo, alias: res.alias, mayoristas: res.mayoristas })
   }
@@ -123,17 +126,17 @@ window.Genova = window.Genova || {}
     }
     return items
   }
-  function persistPrecios() {
-    var s = views.preciosStore()
-    if (!s.actual) return // sin cliente seleccionado no hay dónde guardar
-    s.clientes[s.actual] = leerPreciosItems()
-    try { localStorage.setItem('gv_precios', JSON.stringify(s)) } catch (e) {}
+  // Marca cambios sin guardar y habilita el botón "Guardar cambios".
+  function marcarDirtyPrecios() {
+    preciosDirty = true
+    var b = document.getElementById('gv-precios-guardar')
+    if (b) { b.disabled = false; b.style.background = '#2E7D4F'; b.style.color = '#fff'; b.style.cursor = 'pointer' }
   }
   function escHtmlPdf(s) {
     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   }
   function exportarPreciosPdf() {
-    var cliente = views.preciosStore().actual || ''
+    var cliente = (document.getElementById('gv-precios-cliente') || {}).value || state.precliente || ''
     var items = leerPreciosItems()
     var hoy = new Date()
     var fechaTxt = ('0' + hoy.getDate()).slice(-2) + '/' + ('0' + (hoy.getMonth() + 1)).slice(-2) + '/' + hoy.getFullYear()
@@ -183,21 +186,37 @@ window.Genova = window.Genova || {}
     'sel-comision': function () { state.selKind = 'comision' },
     'sel-precios': function () { state.selKind = 'precios' },
 
-    // Cambiar de cliente (o crear uno) — guarda el actual y re-renderiza con el elegido.
+    // Cambiar de cliente (o crear uno). Si hay cambios sin guardar, ofrece guardar antes.
     'precios-cliente': function (el) {
-      persistPrecios() // guarda lo que hay en pantalla para el cliente actual
-      var s = views.preciosStore()
-      if (el.value === '__nuevo__') {
-        var nombre = (window.prompt('Nombre del nuevo cliente:') || '').trim()
-        if (nombre) { if (!s.clientes[nombre]) s.clientes[nombre] = []; s.actual = nombre }
-      } else {
-        s.actual = el.value
+      var nuevo = el.value
+      function aplicar() {
+        if (nuevo === '__nuevo__') {
+          var nombre = (window.prompt('Nombre del nuevo cliente:') || '').trim()
+          state.precliente = nombre || state.precliente // si cancela, se queda como estaba
+        } else {
+          state.precliente = nuevo
+        }
       }
-      try { localStorage.setItem('gv_precios', JSON.stringify(s)) } catch (e) {}
-      // sin return false → re-render para cargar el cliente elegido
+      if (preciosDirty) {
+        if (window.confirm('Tenés cambios sin guardar. ¿Guardar antes de cambiar de cliente?')) {
+          return api.guardarPrecios(state.precliente, leerPreciosItems()).then(function (res) {
+            preciosDirty = false; aplicar(); return res
+          })
+        }
+        preciosDirty = false // descartar cambios
+      }
+      aplicar()
+      // sin return false → re-render con el cliente elegido
     },
-
-    // --- Precios: lista local (localStorage), sin backend, sin re-render ---
+    'precios-guardar': function () {
+      var cliente = (document.getElementById('gv-precios-cliente') || {}).value || state.precliente
+      if (!cliente || cliente === '__nuevo__') return false
+      state.precliente = cliente
+      return api.guardarPrecios(cliente, leerPreciosItems()).then(function (res) {
+        if (!res || !res.error) preciosDirty = false
+        return res
+      })
+    },
     'precios-add': function () {
       var lista = document.getElementById('gv-precios-list')
       if (!lista) return false
@@ -207,7 +226,7 @@ window.Genova = window.Genova || {}
       var nuevo = lista.lastElementChild
       var inp = nuevo && nuevo.querySelector('.gv-precio-prod')
       if (inp) inp.focus()
-      persistPrecios()
+      marcarDirtyPrecios()
       return false
     },
     'precios-del': function (el) {
@@ -216,7 +235,7 @@ window.Genova = window.Genova || {}
       var lista = document.getElementById('gv-precios-list')
       var vacio = document.getElementById('gv-precios-empty')
       if (vacio && lista && lista.children.length === 0) vacio.style.display = 'block'
-      persistPrecios()
+      marcarDirtyPrecios()
       return false
     },
     'precios-pdf': function () { exportarPreciosPdf(); return false },
@@ -596,7 +615,7 @@ window.Genova = window.Genova || {}
   })
   root.addEventListener('input', function (e) {
     if (esNumInput(e.target)) reformatNum(e.target)
-    if (e.target.closest && e.target.closest('#gv-precios-list')) persistPrecios()
+    if (e.target.closest && e.target.closest('#gv-precios-list')) marcarDirtyPrecios()
   })
 
   // --- Arranque / autenticación ---
